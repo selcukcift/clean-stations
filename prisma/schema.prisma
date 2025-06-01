@@ -107,6 +107,11 @@ model User {
   initials     String
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+
+  // Relations
+  createdOrders      Order[]             @relation("OrderCreatedBy")
+  historyLogs        OrderHistoryLog[]   @relation("UserHistoryLogs")
+  notifications      Notification[]      @relation("UserNotifications")
 }
 
 enum UserRole {
@@ -115,4 +120,170 @@ enum UserRole {
   PROCUREMENT_SPECIALIST
   QC_PERSON
   ASSEMBLER
+  SERVICE_DEPARTMENT
+}
+
+// Order Management Models
+enum OrderStatus {
+  ORDER_CREATED
+  PARTS_SENT_WAITING_ARRIVAL
+  READY_FOR_PRE_QC
+  READY_FOR_PRODUCTION
+  TESTING_COMPLETE
+  PACKAGING_COMPLETE
+  READY_FOR_FINAL_QC
+  READY_FOR_SHIP
+  SHIPPED
+}
+
+model Order {
+  id             String      @id @default(cuid())
+  poNumber       String      @unique
+  buildNumbers   String[]    // Array of unique build numbers for this order
+  customerName   String
+  projectName    String?
+  salesPerson    String
+  wantDate       DateTime
+  notes          String?
+  language       String      @default("EN") // For manual selection (EN/FR)
+  orderStatus    OrderStatus @default(ORDER_CREATED)
+  currentAssignee String?    // UserID of currently assigned person
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  // Relations
+  createdBy           User                   @relation("OrderCreatedBy", fields: [createdById], references: [id])
+  createdById         String
+  basinConfigurations BasinConfiguration[]
+  faucetConfigurations FaucetConfiguration[]
+  sprayerConfigurations SprayerConfiguration[]
+  selectedAccessories SelectedAccessory[]
+  associatedDocuments AssociatedDocument[]
+  generatedBoms       Bom[]                  @relation("OrderBoms")
+  historyLogs         OrderHistoryLog[]
+  notifications       Notification[]
+
+  @@unique([poNumber, buildNumbers])
+}
+
+model BasinConfiguration {
+  id                   String  @id @default(cuid())
+  buildNumber          String  // Which build this basin config applies to
+  basinTypeId          String  // Assembly ID for basin type (E-Sink, E-Drain, etc.)
+  basinSizePartNumber  String? // Part number for basin size (can be custom)
+  basinCount           Int     @default(1)
+  addonIds             String[] // Array of addon assembly IDs
+  
+  // Relations
+  order                Order   @relation(fields: [orderId], references: [id])
+  orderId              String
+}
+
+model FaucetConfiguration {
+  id              String   @id @default(cuid())
+  buildNumber     String   // Which build this faucet config applies to
+  faucetTypeId    String   // Assembly ID for faucet type
+  faucetQuantity  Int      @default(1)
+  faucetPlacement String?  // Center, Between Basins, etc.
+  
+  // Relations
+  order           Order    @relation(fields: [orderId], references: [id])
+  orderId         String
+}
+
+model SprayerConfiguration {
+  id                String   @id @default(cuid())
+  buildNumber       String   // Which build this sprayer config applies to
+  hasSpray          Boolean  @default(false)
+  sprayerTypeIds    String[] // Array of sprayer assembly IDs
+  sprayerQuantity   Int      @default(0)
+  sprayerLocations  String[] // Array of locations (Left Side, Right Side, etc.)
+  
+  // Relations
+  order             Order    @relation(fields: [orderId], references: [id])
+  orderId           String
+}
+
+model SelectedAccessory {
+  id           String @id @default(cuid())
+  buildNumber  String // Which build this accessory applies to
+  assemblyId   String // Assembly ID of the accessory
+  quantity     Int    @default(1)
+  
+  // Relations
+  order        Order  @relation(fields: [orderId], references: [id])
+  orderId      String
+}
+
+model AssociatedDocument {
+  id           String   @id @default(cuid())
+  docName      String   // Original filename
+  docURL       String   // Path to stored file
+  uploadedBy   String   // User ID who uploaded
+  timestamp    DateTime @default(now())
+  docType      String?  // PO_DOCUMENT, TECHNICAL_DRAWING, etc.
+  
+  // Relations
+  order        Order    @relation(fields: [orderId], references: [id])
+  orderId      String
+}
+
+// BOM (Bill of Materials) Models
+model Bom {
+  id           String    @id @default(cuid())
+  buildNumber  String?   // Which build this BOM applies to (null for order-wide BOMs)
+  generatedAt  DateTime  @default(now())
+  
+  // Relations
+  order        Order     @relation("OrderBoms", fields: [orderId], references: [id])
+  orderId      String
+  bomItems     BomItem[]
+}
+
+model BomItem {
+  id                   String    @id @default(cuid())
+  partIdOrAssemblyId   String    // The part number or assembly ID
+  name                 String    // Display name
+  quantity             Int       // Quantity needed
+  itemType             String    // PART, ASSEMBLY, CUSTOM_PART, etc.
+  category             String?   // SYSTEM, SINK_BODY, LEGS, etc.
+  isCustom             Boolean   @default(false)
+  parentId             String?   // For hierarchical structure
+  
+  // Relations
+  bom                  Bom       @relation(fields: [bomId], references: [id])
+  bomId                String
+  children             BomItem[] @relation("ParentChildBomItem")
+  parent               BomItem?  @relation("ParentChildBomItem", fields: [parentId], references: [id])
+}
+
+// Order History and Workflow
+model OrderHistoryLog {
+  id        String   @id @default(cuid())
+  timestamp DateTime @default(now())
+  action    String   // Action taken
+  oldStatus String?  // Previous status
+  newStatus String?  // New status
+  notes     String?  // Additional notes
+  
+  // Relations
+  order     Order    @relation(fields: [orderId], references: [id])
+  orderId   String
+  user      User     @relation("UserHistoryLogs", fields: [userId], references: [id])
+  userId    String
+}
+
+// Notifications
+model Notification {
+  id           String   @id @default(cuid())
+  message      String
+  linkToOrder  String?  // Order ID to link to
+  isRead       Boolean  @default(false)
+  type         String?  // ORDER_CREATED, STATUS_CHANGED, etc.
+  createdAt    DateTime @default(now())
+  
+  // Relations
+  recipient    User     @relation("UserNotifications", fields: [recipientId], references: [id])
+  recipientId  String
+  order        Order?   @relation(fields: [linkToOrder], references: [id])
 }

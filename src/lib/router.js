@@ -18,6 +18,8 @@ const {
     getAccessoriesByCategoryHandler,
 } = require('../api/configuratorHandlers'); // Added configuratorHandlers
 const { adminTest, productionTest } = require('../api/testHandlers');
+const { createOrder, getOrders, getOrderById, updateOrderStatus } = require('../api/ordersHandlers');
+const { uploadPODocument, getOrderDocuments, downloadDocument } = require('../api/fileUploadHandlers');
 const { protectRoute, requireAuth } = require('./authMiddleware');
 const { sendJSONResponse } = require('./requestUtils');
 
@@ -26,11 +28,14 @@ async function routeRequest(req, res) { // Added async here
   const method = req.method;
   const path = parsedUrl.pathname;
 
-  console.log(`Received request: ${method} ${path}`);
-
-  // Regex for specific ID routes
+  console.log(`Received request: ${method} ${path}`);  // Regex for specific ID routes
   const partIdRegex = /^\/api\/parts\/([^\/]+)$/;
   const assemblyIdRegex = /^\/api\/assemblies\/([^\/]+)$/;
+  const orderIdRegex = /^\/api\/orders\/([^\/]+)$/;
+  const orderStatusRegex = /^\/api\/orders\/([^\/]+)\/status$/;
+  const orderUploadRegex = /^\/api\/orders\/([^\/]+)\/upload-document$/;
+  const orderDocumentsRegex = /^\/api\/orders\/([^\/]+)\/documents$/;
+  const documentDownloadRegex = /^\/api\/documents\/([^\/]+)\/download$/;
   let match;
 
   // Authentication routes (public)
@@ -58,9 +63,30 @@ async function routeRequest(req, res) { // Added async here
     const assemblyId = match[1];
     await getAssemblyById(req, res, assemblyId);
   } else if (method === 'GET' && path === '/api/categories') {
-    await getCategories(req, res);
-  } else if (method === 'POST' && path === '/api/bom/generate') {
+    await getCategories(req, res);  } else if (method === 'POST' && path === '/api/bom/generate') {
     await handleGenerateBom(req, res);
+
+  // Order routes (protected)
+  } else if (method === 'POST' && path === '/api/orders') {
+    await requireAuth('PRODUCTION_COORDINATOR', 'ADMIN')(createOrder)(req, res);
+  } else if (method === 'GET' && path === '/api/orders') {
+    await protectRoute(getOrders)(req, res);
+  } else if (method === 'GET' && (match = path.match(orderIdRegex))) {
+    const orderId = match[1];
+    await protectRoute(getOrderById)(req, res, orderId);  } else if (method === 'PUT' && (match = path.match(orderStatusRegex))) {
+    const orderId = match[1];
+    await protectRoute(updateOrderStatus)(req, res, orderId);
+
+  // File upload routes (protected)
+  } else if (method === 'POST' && (match = path.match(orderUploadRegex))) {
+    const orderId = match[1];
+    await requireAuth('PRODUCTION_COORDINATOR', 'ADMIN')(uploadPODocument)(req, res, orderId);
+  } else if (method === 'GET' && (match = path.match(orderDocumentsRegex))) {
+    const orderId = match[1];
+    await protectRoute(getOrderDocuments)(req, res, orderId);
+  } else if (method === 'GET' && (match = path.match(documentDownloadRegex))) {
+    const documentId = match[1];
+    await protectRoute(downloadDocument)(req, res, documentId);
 
   // Configurator routes
   } else if (method === 'GET' && path === '/api/configurator/sink-models') {

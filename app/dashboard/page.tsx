@@ -86,8 +86,17 @@ export default function DashboardPage() {
               <CardDescription>
                 Common tasks for your role
               </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-2">
+            </CardHeader>            <CardContent className="space-y-2">
+              {(user.role === 'ADMIN' || user.role === 'PRODUCTION_COORDINATOR') && (
+                <Button 
+                  variant="outline" 
+                  className="w-full justify-start"
+                  onClick={() => router.push('/orders/create')}
+                >
+                  <Package className="mr-2 h-4 w-4" />
+                  Create Order
+                </Button>
+              )}
               <Button variant="outline" className="w-full justify-start">
                 <Package className="mr-2 h-4 w-4" />
                 View Orders
