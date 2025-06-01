@@ -95,3 +95,24 @@ enum AssemblyType {
   SERVICE_PART
   KIT
 }
+
+model User {
+  id           String   @id @default(cuid())
+  username     String   @unique
+  email        String   @unique
+  passwordHash String
+  fullName     String
+  role         UserRole
+  isActive     Boolean  @default(true)
+  initials     String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+enum UserRole {
+  ADMIN
+  PRODUCTION_COORDINATOR
+  PROCUREMENT_SPECIALIST
+  QC_PERSON
+  ASSEMBLER
+}

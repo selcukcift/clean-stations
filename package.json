@@ -19,7 +19,9 @@
   },
   "dependencies": {
     "@prisma/client": "^6.8.2",
-    "dotenv": "^16.5.0"
+    "bcryptjs": "^3.0.2",
+    "dotenv": "^16.5.0",
+    "jsonwebtoken": "^9.0.2"
   },
   "prisma": {
     "seed": "node scripts/seed.js"
