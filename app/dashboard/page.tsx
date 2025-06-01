@@ -8,6 +8,11 @@ import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 import { AppHeader } from "@/components/ui/app-header"
 import { useAuthStore } from "@/stores/authStore"
+import { ProductionCoordinatorDashboard } from "@/components/dashboard/ProductionCoordinatorDashboard"
+import { ProcurementSpecialistDashboard } from "@/components/dashboard/ProcurementSpecialistDashboard"
+import { AssemblerDashboard } from "@/components/dashboard/AssemblerDashboard"
+import { QCPersonDashboard } from "@/components/dashboard/QCPersonDashboard"
+import { AdminDashboard } from "@/components/dashboard/AdminDashboard"
 
 const roleIcons = {
   ADMIN: Settings,
@@ -41,6 +46,38 @@ export default function DashboardPage() {
 
   const RoleIcon = roleIcons[user.role] || Settings
 
+  // Show role-specific dashboards
+  const renderRoleDashboard = () => {
+    switch (user.role) {
+      case 'ADMIN':
+        return <AdminDashboard />
+      case 'PRODUCTION_COORDINATOR':
+        return <ProductionCoordinatorDashboard />
+      case 'PROCUREMENT_SPECIALIST':
+        return <ProcurementSpecialistDashboard />
+      case 'ASSEMBLER':
+        return <AssemblerDashboard />
+      case 'QC_PERSON':
+        return <QCPersonDashboard />
+      default:
+        return null
+    }
+  }
+
+  const roleDashboard = renderRoleDashboard()
+  
+  if (roleDashboard) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+        <AppHeader />
+        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          {roleDashboard}
+        </main>
+      </div>
+    )
+  }
+
+  // Default dashboard for other roles
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
       <AppHeader />

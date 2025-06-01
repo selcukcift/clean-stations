@@ -69,7 +69,7 @@ async function getFeetTypes() {
     });
 }
 
-async function getPegboardOptions() {
+async function getPegboardOptions(sinkDimensions) {
     // Types: Perforated, Solid. These might be attributes of pegboard assemblies or separate parts.
     // Sizes: Standard sizes (e.g., T2-ADW-PB-3436) and "Same as Sink Length" logic.
     // Custom part number generation: "720.215.002 T2-ADW-PB-[width]x[length]"
@@ -93,6 +93,31 @@ async function getPegboardOptions() {
             // Add fields for type (Perforated/Solid) and dimensions if available
         }
     });
+    
+    // Determine if a standard size fits the sink dimensions
+    let needsCustom = true;
+    let matchingStandard = null;
+    
+    if (sinkDimensions && sinkDimensions.width && sinkDimensions.length) {
+        // Check if any standard pegboard matches the dimensions
+        for (const pegboard of standardPegboards) {
+            // Extract dimensions from assembly name if possible
+            // Assuming format like "T2-ADW-PB-3436" where 34 is width and 36 is length
+            const dimensionMatch = pegboard.name.match(/T2-ADW-PB-(\d+)(\d{2})$/);
+            if (dimensionMatch) {
+                const [, widthStr, lengthStr] = dimensionMatch;
+                const standardWidth = parseInt(widthStr);
+                const standardLength = parseInt(lengthStr);
+                
+                if (standardWidth === sinkDimensions.width && standardLength === sinkDimensions.length) {
+                    needsCustom = false;
+                    matchingStandard = pegboard;
+                    break;
+                }
+            }
+        }
+    }
+    
     // The "Same as Sink Length" and custom generation are more about client-side/BOM logic
     // but we can return available standard types and sizes.
     // For "Perforated" / "Solid", this might be part of the assembly name/description or a separate field.
@@ -101,7 +126,10 @@ async function getPegboardOptions() {
     return {
         types: ["Perforated", "Solid"], // These might need to be derived from data
         standardSizes: standardPegboards,
-        customPartNumberRule: "720.215.002 T2-ADW-PB-[width]x[length]"
+        customPartNumberRule: "720.215.002 T2-ADW-PB-[width]x[length]",
+        needsCustom: needsCustom,
+        matchingStandard: matchingStandard,
+        customDimensions: sinkDimensions
     };
 }
 
@@ -245,6 +273,58 @@ async function getAccessoriesByCategory(subcategoryCode) {
     });
 }
 
+async function getControlBox(basinConfigurationsArray) {
+    // Determine the correct control box assembly ID based on the number and types 
+    // of E-Sink/E-Drain basins provided in the basinConfigurationsArray
+    
+    let eDrainCount = 0;
+    let eSinkCount = 0; // This includes both E_SINK and E_SINK_DI
+    
+    // Count basins by type
+    for (const basin of basinConfigurationsArray) {
+        if (basin.basinType === 'E_DRAIN') {
+            eDrainCount++;
+        } else if (basin.basinType === 'E_SINK' || basin.basinType === 'E_SINK_DI') {
+            eSinkCount++;
+        }
+    }
+    
+    // Mapping rules based on resource/sink configuration and bom.txt
+    const controlBoxMappings = {
+        'T2-CTRL-EDR1': { eDrain: 1, eSink: 0 },        // CONTROL BOX ONLY FOR 1 EDRAIN BASIN
+        'T2-CTRL-ESK1': { eDrain: 0, eSink: 1 },        // CONTROL BOX ONLY FOR 1 ESINK BASIN
+        'T2-CTRL-EDR1-ESK1': { eDrain: 1, eSink: 1 },   // CONTROL BOX ONLY FOR 1 EDRAIN AND 1 ESINK BASINS
+        'T2-CTRL-EDR2': { eDrain: 2, eSink: 0 },        // CONTROL BOX ONLY FOR 2 EDRAIN BASINS
+        'T2-CTRL-ESK2': { eDrain: 0, eSink: 2 },        // CONTROL BOX ONLY FOR 2 ESINK BASINS
+        'T2-CTRL-EDR3': { eDrain: 3, eSink: 0 },        // CONTROL BOX ONLY FOR 3 EDRAIN BASINS
+        'T2-CTRL-ESK3': { eDrain: 0, eSink: 3 },        // CONTROL BOX ONLY FOR 3 ESINK BASINS
+        'T2-CTRL-EDR1-ESK2': { eDrain: 1, eSink: 2 },   // CONTROL BOX ONLY FOR 1 EDRAIN AND 2 ESINK BASINS
+        'T2-CTRL-EDR2-ESK1': { eDrain: 2, eSink: 1 },   // CONTROL BOX ONLY FOR 2 EDRAIN AND 1 ESINK BASINS
+    };
+    
+    // Find the matching control box
+    for (const [controlBoxId, config] of Object.entries(controlBoxMappings)) {
+        if (config.eDrain === eDrainCount && config.eSink === eSinkCount) {
+            // Verify the assembly exists in the database
+            const controlBox = await prisma.assembly.findUnique({
+                where: { assemblyId: controlBoxId },
+                select: {
+                    assemblyId: true,
+                    name: true
+                }
+            });
+            
+            if (controlBox) {
+                return controlBox;
+            }
+        }
+    }
+    
+    // If no exact match found, return null or throw an error
+    console.warn(`No control box found for configuration: ${eDrainCount} E-Drain, ${eSinkCount} E-Sink basins`);
+    return null;
+}
+
 module.exports = {
     getSinkModels,
     getLegTypes,
@@ -257,4 +337,5 @@ module.exports = {
     getSprayerTypeOptions,
     getAccessoryCategories,
     getAccessoriesByCategory,
+    getControlBox,
 };

@@ -36,18 +36,28 @@ export default function LoginPage() {
       password: "",
     },
   })
-
-  const onSubmit = async (values: LoginFormValues) => {
-    setIsSubmitting(true)
+  const onSubmit = async (values: LoginFormValues) => {    setIsSubmitting(true)
     setLoading(true)
 
     try {
-      const response = await plainNodeApiClient.post('/auth/login', {
-        username: values.username,
-        password: values.password,
+      // Use Next.js proxy instead of direct backend call
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          username: values.username,
+          password: values.password,
+        }),
       })
 
-      const { token, user } = response.data
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+      }
+
+      const responseData = await response.json()
+      const { token, user } = responseData
 
       // Store auth data in Zustand store
       login(token, user)

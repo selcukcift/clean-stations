@@ -19,6 +19,7 @@ import {
   Loader2,
   AlertCircle
 } from "lucide-react"
+import { nextJsApiClient } from '@/lib/api'
 
 interface OrderSubmitResponse {
   success: boolean
@@ -39,7 +40,6 @@ export function ReviewStep() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [submitSuccess, setSubmitSuccess] = useState<OrderSubmitResponse | null>(null)
-
   const handleSubmitOrder = async () => {
     setIsSubmitting(true)
     setSubmitError(null)
@@ -52,19 +52,9 @@ export function ReviewStep() {
         accessories
       }
 
-      const response = await fetch('/api/orders', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(orderData),
-      })
+      const response = await nextJsApiClient.post('/orders', orderData)
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
-
-      const result: OrderSubmitResponse = await response.json()
+      const result: OrderSubmitResponse = response.data
       
       if (result.success) {
         setSubmitSuccess(result)
@@ -75,9 +65,13 @@ export function ReviewStep() {
       } else {
         setSubmitError(result.message || 'Order submission failed')
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error submitting order:', error)
-      setSubmitError('Failed to submit order. Please try again.')
+      if (error.response?.data?.message) {
+        setSubmitError(error.response.data.message)
+      } else {
+        setSubmitError('Failed to submit order. Please try again.')
+      }
     } finally {
       setIsSubmitting(false)
     }

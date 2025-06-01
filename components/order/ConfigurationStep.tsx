@@ -11,13 +11,12 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ChevronLeft, ChevronRight, Settings, Wrench } from "lucide-react"
+import { ChevronLeft, ChevronRight, Settings, Wrench, Loader2, Package, AlertCircle } from "lucide-react"
 import { nextJsApiClient } from '@/lib/api'
 
 export function ConfigurationStep() {
   const { sinkSelection, configurations, updateSinkConfiguration } = useOrderCreateStore()
   const [currentBuildIndex, setCurrentBuildIndex] = useState(0)
-
   const [sinkModels, setSinkModels] = useState<any[]>([])
   const [legsTypes, setLegsTypes] = useState<any[]>([])
   const [feetOptions, setFeetOptions] = useState<any[]>([])
@@ -26,6 +25,8 @@ export function ConfigurationStep() {
   const [basinSizes, setBasinSizes] = useState<any[]>([])
   const [faucetTypes, setFaucetTypes] = useState<any[]>([])
   const [sprayerTypes, setSprayerTypes] = useState<any[]>([])
+  const [controlBox, setControlBox] = useState<any>(null)
+  const [controlBoxLoading, setControlBoxLoading] = useState(false)
 
   useEffect(() => {
     async function fetchConfigOptions() {
@@ -58,10 +59,50 @@ export function ConfigurationStep() {
   const buildNumbers = sinkSelection.buildNumbers || []
   const currentBuildNumber = buildNumbers[currentBuildIndex]
   const currentConfig = configurations[currentBuildNumber] || {}
-
   const updateConfig = (updates: any) => {
     updateSinkConfiguration(currentBuildNumber, updates)
+    
+    // If basin configuration changed, update control box
+    if (updates.basins) {
+      updateControlBox(updates.basins)
+    }
   }
+
+  const updateControlBox = async (basins: any[]) => {
+    // Only fetch control box if we have basins with types
+    if (!basins || basins.length === 0 || !basins.some(basin => basin?.basinType)) {
+      setControlBox(null)
+      updateConfig({ controlBoxId: null })
+      return
+    }
+
+    setControlBoxLoading(true)
+    try {
+      const validBasins = basins.filter(basin => basin?.basinType)
+      const response = await nextJsApiClient.get(`/configurator?type=control-box&basins=${JSON.stringify(validBasins)}`)
+      if (response.data.success && response.data.data) {
+        setControlBox(response.data.data)
+        // Update the configuration with the control box ID
+        updateConfig({ controlBoxId: response.data.data.assemblyId })
+      } else {
+        setControlBox(null)
+        updateConfig({ controlBoxId: null })
+      }
+    } catch (error) {
+      console.error('Error fetching control box:', error)
+      setControlBox(null)
+      updateConfig({ controlBoxId: null })
+    } finally {
+      setControlBoxLoading(false)
+    }
+  }
+
+  // Effect to update control box when component loads or basin config changes
+  useEffect(() => {
+    if (currentConfig.basins && currentConfig.basins.length > 0) {
+      updateControlBox(currentConfig.basins)
+    }
+  }, [currentBuildNumber])
 
   const getSelectedModel = () => {
     return sinkModels.find(model => model.assemblyId === currentConfig.sinkModelId)
@@ -521,25 +562,39 @@ export function ConfigurationStep() {
                     </SelectContent>
                   </Select>
                 </div>
-              </div>
-
-              {/* Sprayer Configuration */}
+              </div>              {/* Sprayer Configuration */}
               <div className="space-y-4">
                 <div className="flex items-center space-x-2">
                   <Checkbox
                     id="sprayer"
-                    checked={currentConfig.sprayer || false}
-                    onCheckedChange={(checked: any) => updateConfig({ sprayer: !!checked })}
+                    checked={currentConfig.sprayer?.hasSprayerSystem || false}
+                    onCheckedChange={(checked: any) => updateConfig({ 
+                      sprayer: { 
+                        hasSprayerSystem: !!checked,
+                        sprayerTypeIds: checked ? currentConfig.sprayer?.sprayerTypeIds || [] : []
+                      }
+                    })}
                   />
                   <Label htmlFor="sprayer">Include Sprayer</Label>
                 </div>
 
-                {currentConfig.sprayer && (
+                {currentConfig.sprayer?.hasSprayerSystem && (
                   <div className="p-4 border rounded-lg space-y-4">
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                       <div className="space-y-2">
                         <Label>Sprayer Type *</Label>
-                        <Select value={currentConfig.sprayerType} onValueChange={(value) => updateConfig({ sprayerType: value })}>
+                        <Select 
+                          value={currentConfig.sprayerType} 
+                          onValueChange={(value) => {
+                            updateConfig({ 
+                              sprayerType: value,
+                              sprayer: {
+                                ...currentConfig.sprayer,
+                                sprayerTypeIds: [value]
+                              }
+                            })
+                          }}
+                        >
                           <SelectTrigger>
                             <SelectValue placeholder="Select sprayer type" />
                           </SelectTrigger>
@@ -587,17 +642,54 @@ export function ConfigurationStep() {
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
-
-        {/* Add-ons Tab */}
+        </TabsContent>        {/* Add-ons Tab */}
         <TabsContent value="addons" className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Additional Add-ons</CardTitle>
-              <CardDescription>Select optional add-on components</CardDescription>
+              <CardTitle>Control Box & Add-ons</CardTitle>
+              <CardDescription>Automatically selected based on basin configuration</CardDescription>
             </CardHeader>
-            <CardContent>
-              <p className="text-slate-600">Additional add-on options will be available here.</p>
+            <CardContent className="space-y-6">
+              {/* Control Box Section */}
+              <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <h4 className="font-medium text-blue-900 mb-3">Required Control Box</h4>
+                {controlBoxLoading ? (
+                  <div className="flex items-center space-x-2 text-blue-700">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Determining control box...</span>
+                  </div>
+                ) : controlBox ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center space-x-2">
+                      <Package className="w-4 h-4 text-blue-600" />
+                      <span className="font-medium">{controlBox.name}</span>
+                    </div>
+                    <p className="text-sm text-blue-700">
+                      Part Number: {controlBox.assemblyId}
+                    </p>
+                    <p className="text-xs text-blue-600">
+                      This control box is automatically selected based on your basin configuration
+                    </p>
+                  </div>
+                ) : currentConfig.basins && currentConfig.basins.length > 0 ? (
+                  <div className="text-amber-700">
+                    <div className="flex items-center space-x-2">
+                      <AlertCircle className="w-4 h-4" />
+                      <span>No control box required for current basin configuration</span>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-slate-600">
+                    Control box will be determined after basin configuration is complete
+                  </p>
+                )}
+              </div>
+
+              {/* Other Add-ons */}
+              <div className="space-y-4">
+                <h4 className="font-medium">Optional Add-ons</h4>
+                <p className="text-slate-600">Additional add-on options will be available here.</p>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

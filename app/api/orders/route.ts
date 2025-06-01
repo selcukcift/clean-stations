@@ -68,35 +68,41 @@ const OrderCreateSchema = z.object({
   accessories: z.record(z.string(), z.array(SelectedAccessorySchema))
 })
 
-// Authentication helper
-async function getAuthenticatedUser(request: NextRequest) {
-  const cookieStore = await cookies()
-  const token = cookieStore.get('auth-token')?.value
+// Use the centralized auth utility
+import { getAuthUser, checkUserRole } from '@/lib/nextAuthUtils'
 
-  if (!token) {
-    throw new Error('Authentication required')
-  }
-
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { userId: string }
-    const user = await prisma.user.findUnique({
-      where: { id: decoded.userId }
+// Helper function to save BOM items recursively
+async function saveBomItemsRecursive(
+  tx: any, 
+  bomItems: any[], 
+  bomId: string, 
+  parentId: string | null = null
+): Promise<void> {
+  for (const item of bomItems) {
+    const bomItem = await tx.bomItem.create({
+      data: {
+        bomId: bomId,
+        partIdOrAssemblyId: item.id,
+        name: item.name,
+        quantity: item.quantity,
+        itemType: item.type || 'ASSEMBLY',
+        category: item.category || 'SYSTEM',
+        isCustom: item.isPlaceholder || false,
+        parentId: parentId
+      }
     })
-    
-    if (!user || !user.isActive) {
-      throw new Error('Invalid user')
+
+    // Recursively save child components if they exist
+    if (item.components && item.components.length > 0) {
+      await saveBomItemsRecursive(tx, item.components, bomId, bomItem.id)
     }
-    
-    return user
-  } catch (error) {
-    throw new Error('Invalid authentication token')
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    // Authenticate user
-    const user = await getAuthenticatedUser(request)
+    // Authenticate user using centralized utility
+    const user = await getAuthUser(request)
     
     // Parse and validate request body
     const body = await request.json()
@@ -215,14 +221,32 @@ export async function POST(request: NextRequest) {
       await prisma.selectedAccessory.createMany({
         data: accessoryItems
       })
-    }
-
-    // Generate BOM using the service
+    }    // Generate BOM using the service
     const bomResult = await generateBOMForOrder({
       customer: customerInfo,
       configurations,
       accessories,
       buildNumbers: sinkSelection.buildNumbers
+    })
+
+    // Save BOMs to database - Use transaction for data consistency
+    const savedOrderWithBoms = await prisma.$transaction(async (tx) => {
+      // Create BOMs for each build number if bomResult has data
+      if (bomResult && bomResult.length > 0) {
+        for (const buildNumber of sinkSelection.buildNumbers) {
+          const createdBom = await tx.bom.create({
+            data: {
+              orderId: order.id,
+              buildNumber: buildNumber
+            }
+          })
+
+          // Save BOM items recursively
+          await saveBomItemsRecursive(tx, bomResult, createdBom.id, null)
+        }
+      }
+
+      return order
     })
 
     // Create order history log
@@ -273,7 +297,7 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
-    const user = await getAuthenticatedUser(request)
+    const user = await getAuthUser(request)
     
     const { searchParams } = new URL(request.url)
     const page = parseInt(searchParams.get('page') || '1')
@@ -281,16 +305,54 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get('status')
     const poNumber = searchParams.get('poNumber')
 
-    const where: any = {}
-    
-    if (status) {
-      where.orderStatus = status
-    }
-    
-    if (poNumber) {
-      where.poNumber = {
-        contains: poNumber,
-        mode: 'insensitive'
+    let where: any = {}
+
+    // Implement role-based filtering
+    if (user.role === 'ADMIN' || user.role === 'PRODUCTION_COORDINATOR') {
+      // Admin and Production Coordinator can see all orders
+      if (status) {
+        where.orderStatus = status
+      }
+      if (poNumber) {
+        where.poNumber = {
+          contains: poNumber,
+          mode: 'insensitive'
+        }
+      }
+    } else if (user.role === 'ASSEMBLER') {
+      // Assemblers see orders assigned to them or in specific statuses
+      where = {
+        OR: [
+          { currentAssignee: user.id },
+          { orderStatus: { in: ['READY_FOR_PRODUCTION', 'TESTING_COMPLETE'] } }
+        ]
+      }
+      if (status) {
+        where.orderStatus = status
+      }
+    } else if (user.role === 'QC_PERSON') {
+      // QC sees orders ready for QC
+      where.orderStatus = { in: ['READY_FOR_PRE_QC', 'READY_FOR_FINAL_QC'] }
+      if (status) {
+        where.orderStatus = status
+      }
+    } else if (user.role === 'PROCUREMENT_SPECIALIST') {
+      // Procurement sees orders that need parts management
+      where.orderStatus = { in: ['ORDER_CREATED', 'PARTS_SENT_WAITING_ARRIVAL'] }
+      if (status) {
+        where.orderStatus = status
+      }
+    } else {
+      // Default: user can only see their own orders
+      where.createdById = user.id
+      if (status) {
+        where.orderStatus = status
+      }
+      if (poNumber) {
+        where.poNumber = {
+          contains: poNumber,
+          mode: 'insensitive'
+        }
       }
     }
 

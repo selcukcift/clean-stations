@@ -1,0 +1,218 @@
+Phase 1: Solidify Chain 3 Backend (Focus on Next.js API Routes)
+Prompt 1.A: Implement Missing Order Detail & Status Update API Endpoints
+
+"Create the missing Next.js API routes for fetching order details and updating order status:
+
+Create app/api/orders/[orderId]/route.ts:
+Implement a GET handler:
+Accept orderId from the path.
+Use getAuthUser from lib/nextAuthUtils.ts for authentication.
+Fetch the order from Prisma using orderId. Include all relations as specified in Prompt 1.1: createdBy, AssociatedDocument, Bom (with BomItem hierarchy including children), OrderHistoryLog (with user details), BasinConfiguration, FaucetConfiguration, SprayerConfiguration, SelectedAccessory.
+Implement role-based access control (e.g., user must be creator, admin, or have a role relevant to the order's current status).
+Return the detailed order object or a 404/403 error.
+Create app/api/orders/[orderId]/status/route.ts:
+Implement a PUT handler:
+Accept orderId from the path and newStatus, notes (optional) from the JSON body.
+Use getAuthUser for authentication.
+Fetch the current order from Prisma.
+Implement robust status transition validation logic:
+Define allowed transitions based on current status and authenticatedUser.role (as per PRD or define basic rules, e.g., using the validateStatusTransition logic example from src/api/ordersHandlers.js as a starting point, but adapt for Next.js context).
+If transition is not allowed, return a 403 error.
+If valid, update Order.orderStatus and Order.updatedAt in Prisma.
+Create an OrderHistoryLog entry with userId, action: 'STATUS_UPDATED', oldStatus, newStatus, and notes.
+Perform these operations within a Prisma transaction (prisma.$transaction(...)).
+Return the updated order object or success message.
+Use Zod for request body validation."
+Prompt 1.B: Ensure BOM Saving and Complete Order API Functionality
+
+"Refine the existing order creation API and ensure BOMs are saved:
+
+Modify app/api/orders/route.ts (POST Handler):
+After generateBOMForOrder is called and returns bomResult:
+Iterate through bomResult and create corresponding Bom and BomItem records in Prisma, associating them with the newly created order.id.
+The Bom record should link to the orderId.
+BomItem records should capture the hierarchical structure (parent-child relationships for nested assemblies/parts) and link to the Bom record. This might involve a recursive helper function to save nested BOM items.
+TypeScript
+
+// Inside POST handler, after order and bomResult are available:
+if (bomResult && bomResult.length > 0) {
+  const createdBom = await prisma.bom.create({
+    data: {
+      orderId: order.id, // Link to the main order
+      buildNumber: poNumber, // Or a specific buildNumber if BOM is per-build
+      // bomItems: { // This relation might need specific handling depending on your Prisma schema for BomItem
+      //   create: bomResult.map(item => ({
+      //     partIdOrAssemblyId: item.id,
+      //     name: item.name,
+      //     quantity: item.quantity,
+      //     itemType: item.type,
+      //     category: item.category,
+      //     // TODO: Handle nested components for BomItem hierarchy
+      //   }))
+      // }
+    }
+  });
+  // You'll need a more sophisticated way to save hierarchical BomItems
+  // This might involve iterating bomResult and creating parent and child BomItem records.
+}
+Ensure this database operation is part of the overall Prisma transaction for order creation if possible, or handled robustly with error checking.
+Modify app/api/orders/route.ts (GET Handler):
+Implement comprehensive role-based filtering for listing orders as detailed in Prompt 1.1 (e.g., Production Coordinators see all, Assemblers see orders assigned to them or in specific statuses).
+This will involve modifying the whereClause based on authenticatedUser.role and potentially authenticatedUser.id."
+Prompt 1.C: Deprecate Old Plain Node.js Order and Upload Handlers
+
+"Formally deprecate the Plain Node.js handlers for orders and file uploads:
+
+In selcukcift/clean-stations/clean-stations-9b2b0741e760d29a509ab638141056e33129b160/src/api/ordersHandlers.js:
+Add the following comment at the top of the file and before each handler function (createOrder, getOrders, getOrderById, updateOrderStatus):
+JavaScript
+
+// DEPRECATED (YYYY-MM-DD): This functionality is now handled by Next.js API Routes in app/api/orders/*.ts. This handler will be removed in a future version.
+// See: resources/Coding Prompt Chains for Torvan Medical Workflow App Expansion (v5 - Hybrid Backend).md
+(Replace YYYY-MM-DD with the current date)
+In selcukcift/clean-stations/clean-stations-9b2b0741e760d29a509ab638141056e33129b160/src/api/fileUploadHandlers.js:
+Add a similar deprecation comment at the top of the file and before uploadPODocument.
+In selcukcift/clean-stations/clean-stations-9b2b0741e760d29a509ab638141056e33129b160/src/lib/router.js:
+Comment out the routes that point to the deprecated handlers in ordersHandlers.js.
+JavaScript
+
+// Example:
+// DEPRECATED: Order routes now handled by Next.js API Routes in app/api/orders/
+// else if (method === 'POST' && path === '/api/orders') {
+//   await requireAuth('PRODUCTION_COORDINATOR', 'ADMIN')(createOrder)(req, res);
+// } else if (method === 'GET' && path === '/api/orders') { // etc. }
+Comment out the routes that point to fileUploadHandlers.js similarly."
+Phase 2: Dynamic Configurator & Accessories Logic
+Prompt 2.A: Enhance Backend Services (configuratorService.js, accessoriesService.js)
+
+"Refine the backend services for dynamic data:
+
+In selcukcift/clean-stations/clean-stations-9b2b0741e760d29a509ab638141056e33129b160/src/services/configuratorService.js:
+Implement getControlBox(basinConfigurationsArray):
+This function needs to determine the correct control box assembly ID (e.g., T2-CTRL-EDR1, T2-CTRL-ESK1, T2-CTRL-EDR1-ESK1, etc.) based on the number and types of E-Sink/E-Drain basins provided in the basinConfigurationsArray. Refer to resources/sink configuration and bom.txt for the mapping rules (e.g., "CONTROL BOX ONLY FOR 1 EDRAIN BASIN").
+The input basinConfigurationsArray would typically be an array of objects, each specifying basinType (e.g., 'E_SINK', 'E_DRAIN').
+Refine getPegboardOptions(sinkDimensions): While custom part number generation rule is noted, ensure the service can provide data that helps the frontend distinguish standard options vs. triggering custom logic if no standard size fits. This might involve returning structured data about available standard pegboard assemblies and their dimensions. The actual generation of the custom part number 720.215.002 T2-ADW-PB-[width]x[length] could happen in bomService.js or here if appropriate, when a custom size is requested.
+In selcukcift/clean-stations/clean-stations-9b2b0741e760d29a509ab638141056e33129b160/src/services/accessoriesService.js:
+Correct getAccessoryCategories() Query:
+The current query prisma.category.findMany({ where: { parentCode: '720' }}) is likely incorrect as the Category model (from prisma/migrations/..._init/migration.sql) does not have a parentCode.
+Change this to fetch Subcategory records where their categoryId is '720' (assuming '720' is the ID for "ACCESSORY LIST" in the Category table).
+JavaScript
+
+// In src/services/accessoriesService.js
+async function getAccessoryCategories() {
+  return prisma.subcategory.findMany({
+    where: {
+      categoryId: '720', // Assuming '720' is the ID of the main "ACCESSORY LIST" category
+    },
+    select: {
+      subcategoryId: true, // This is the 'code' used by the frontend
+      name: true,
+    },
+    orderBy: { name: 'asc' },
+  });
+}
+Ensure the Category with ID '720' named "ACCESSORY LIST" exists from seeding.
+Prompt 2.B: Ensure Authentication and Deprecate Old Configurator Routes
+
+"Finalize API security and cleanup for configurator/accessories:
+
+Add Authentication to Configurator/Accessories Next.js API Routes:
+As per Prompt 0.C, ensure selcukcift/clean-stations/clean-stations-9b2b0741e760d29a509ab638141056e33129b160/app/api/configurator/route.ts and selcukcift/clean-stations/clean-stations-9b2b0741e760d29a509ab638141056e33129b160/app/api/accessories/route.ts use getAuthUser from lib/nextAuthUtils.ts to protect these endpoints. Decide if specific roles are needed or if any authenticated user can access them.
+Deprecate Old Plain Node.js Configurator Routes:
+In selcukcift/clean-stations/clean-stations-9b2b0741e760d29a509ab638141056e33129b160/src/lib/router.js:
+Ensure all routes pointing to handlers in src/api/configuratorHandlers.js (e.g., /api/configurator/sink-models, /api/configurator/leg-types, etc.) are fully commented out. Add comments indicating that these functionalities are now served by app/api/configurator/route.ts and app/api/accessories/route.ts."
+Phase 3: Frontend Integration & Legacy Code Refinement
+Prompt 3.A: Verify Frontend API Calls Post-Backend Refactoring
+
+"After completing the backend refactoring from Prompts 0.B, 1.A, 1.B, 1.C, 2.A, and 2.B:
+
+Thoroughly Test Frontend API Interactions:
+Login: Confirm app/login/page.tsx successfully authenticates against the plain Node.js backend now running on port 3004.
+Order Creation Wizard (components/order/*):
+Verify that ConfigurationStep.tsx and AccessoriesStep.tsx correctly fetch dynamic data from app/api/configurator/route.ts and app/api/accessories/route.ts respectively (i.e., calls using nextJsApiClient are now hitting the Next.js API routes on port 3005, not being proxied).
+Confirm that submitting an order in ReviewStep.tsx correctly calls POST /api/orders on the Next.js API backend.
+Ensure JWT tokens are being correctly attached to all protected API calls to both backend systems.
+Verify that error responses from the APIs are gracefully handled in the frontend (e.g., displaying toast notifications).
+Address getControlBox in Frontend:
+In components/order/ConfigurationStep.tsx and stores/orderCreateStore.ts, ensure there's logic to determine and store the controlBoxId. This might involve:
+An additional call to /api/configurator?type=control-box (once the backend service is implemented in Prompt 2.A) by passing the current basin configurations.
+Client-side logic to determine the controlBoxId based on fetched rules if the backend provides those rules instead of the final ID.
+Ensure the selected/determined controlBoxId is included in the data sent when creating an order."
+Phase 4: Role-Based Dashboards & Order Viewing
+Prompt 4.A: Enhance Basic Dashboard and Implement Order Details Page
+
+"Develop the foundational pieces for role-based dashboards and order viewing:
+
+Enhance app/dashboard/page.tsx:
+Modify it to fetch and display summary information relevant to the logged-in user's role (e.g., number of open orders they need to act on). This will require new API capabilities or client-side filtering of data fetched from /api/orders.
+Instead of just placeholder buttons, make "View Orders" (and similar role-specific task list buttons) navigate to new dedicated dashboard view pages/components (to be created in subsequent prompts).
+Create Order Details Page (app/orders/[orderId]/page.tsx - CRITICAL):
+This page is essential for all roles to view order details.
+Fetch detailed order data using nextJsApiClient.get(\/api/orders/${orderId}`)` (requires the endpoint from Prompt 1.A to be implemented).
+Display all fetched information:
+Customer Information (customerInfo).
+Full Sink Configuration details for each build number (from configurations).
+Selected Accessories for each build number (from accessories).
+The complete, hierarchical Bill of Materials (BOM) (from order.generatedBoms).
+Links to any Associated Documents (from order.associatedDocuments).
+Order History Log (order.historyLogs) in a clear, chronological format.
+Use ShadCN UI components (Card, Table, Badge, DescriptionList equivalent) for a clear and professional layout.
+Implement role-based conditional display of action buttons (e.g., "Update Status" button).
+Implement Status Update UI on Order Details Page:
+For users with permission (e.g., Production Coordinator, Admin, or roles relevant to current status):
+Display a button/dropdown to change the order status.
+This should call the PUT /api/orders/[orderId]/status endpoint (from Prompt 1.A).
+Optionally include a modal to add notes for the status change, to be included in the OrderHistoryLog."
+Prompt 4.B: Develop Production Coordinator Dashboard View
+
+"Create the Production Coordinator's specific dashboard functionality:
+
+Create app/dashboard/production/page.tsx (or a component loaded into app/dashboard/page.tsx for this role):
+Order List (DataTable):
+Fetch orders relevant to Production Coordinators using nextJsApiClient.get('/api/orders?status=...'). Filter by statuses like ORDER_CREATED, PARTS_SENT_WAITING_ARRIVAL, READY_FOR_SHIP, etc. (refer to PRD for full list of relevant statuses for PC).
+Use a ShadCN DataTable to display orders with columns: PO Number, Customer Name, Order Date, Status, Build Numbers, Assigned To (if applicable).
+Add an "Actions" column with a button/link to "View Details" navigating to app/orders/[orderId]/page.tsx.
+Implement client-side or server-side pagination, sorting (e.g., by Order Date, Status), and filtering (e.g., by PO Number, Customer Name, Status).
+Quick Actions:
+Include a prominent "Create New Order" button linking to /orders/create."
+Prompt 4.C: Scaffold Dashboards for Procurement, Assembler, and QC Roles
+
+"Create basic structures for the dashboards of other key roles. Focus on the primary order/task list for each.
+
+Procurement Specialist (app/dashboard/procurement/page.tsx or component):
+Order List (BOM Focus): Fetch orders relevant to procurement (e.g., statuses ORDER_CREATED, PARTS_SENT_WAITING_ARRIVAL). Display in a DataTable: PO Number, Order Date, Status. Add a column for "Key Components Requiring Attention" (this might initially be a placeholder or link to full BOM on the details page). Link to app/orders/[orderId]/page.tsx.
+Assembler (app/dashboard/assembly/page.tsx or component):
+Assigned Orders/Tasks List: Fetch orders relevant to assemblers (e.g., status READY_FOR_PRODUCTION, or orders explicitly assigned to them if that feature is added). Display in a DataTable: PO Number, Sink Type/Model, Due Date (placeholder), Status. Link to app/orders/[orderId]/page.tsx. Add placeholder buttons for "Start Assembly", "Complete Assembly", "View QC Checklist".
+QC Person (app/dashboard/qc/page.tsx or component):
+Orders Ready for QC List: Fetch orders relevant to QC (e.g., status READY_FOR_PRE_QC, READY_FOR_FINAL_QC). Display in a DataTable: PO Number, Sink Type/Model, Status. Link to app/orders/[orderId]/page.tsx. Add placeholder buttons for "Start QC", "Pass/Fail QC", "View QC Checklist".
+For all these roles, ensure the dashboard is protected and only accessible to users with the appropriate role using <ProtectedRoute> or similar logic."
+
+Prompt 4.D: Enhance Admin Dashboard View
+
+"Expand the Admin dashboard capabilities:
+
+Comprehensive Order List in app/dashboard/page.tsx (for Admin role):
+When user role is ADMIN, display a DataTable listing all orders.
+Implement advanced filtering options (by any status, PO Number, Customer, Sales Person, Date Range).
+Include columns similar to Production Coordinator but ensure full visibility.
+Admins should have access to all actions available on the order details page (app/orders/[orderId]/page.tsx), including any status update.
+Placeholders for Future Admin Functions:
+Add placeholder sections or links for "User Management" (Chain to be defined) and "System Logs/Analytics" (Chain to be defined)."
+Logging Enhancements
+Prompt LOG.A: Implement Structured Logging
+
+"Enhance logging across both backend systems for better diagnostics:
+
+Plain Node.js Backend (src/ directory):
+Integrate a lightweight structured logging library (e.g., Pino).
+Modify selcukcift/clean-stations/clean-stations-9b2b0741e760d29a509ab638141056e33129b160/src/server.js to initialize and use this logger.
+Replace console.log and console.error calls in API handlers (e.g., src/api/authHandlers.js, src/api/partsHandlers.js) with structured logger methods (e.g., logger.info(), logger.error()).
+Ensure logs respect the logLevel defined in src/config/environment.js.
+Include contextual information in logs (e.g., request ID, method, path, user ID if authenticated).
+Next.js API Routes (app/api/ directory):
+Use the same (or a similar setup of) structured logging library.
+Replace console.log and console.error in all Next.js API route handlers (e.g., app/api/orders/route.ts, app/api/upload/route.ts) with structured logger methods.
+Ensure logs include relevant context (API route, method, user if authenticated).
+Configuration:
+Ensure the logFormat from src/config/environment.js can be used (e.g., JSON format for production, pretty-print for development).
+Prisma client logging is already configured in src/config/database.js; ensure its output is compatible or can be integrated with the chosen structured logger if necessary."

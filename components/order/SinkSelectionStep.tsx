@@ -37,9 +37,31 @@ export function SinkSelectionStep() {
       .catch(() => {
         setSinkFamilies([
           { value: 'MDRD', label: 'MDRD CleanStation', available: true }
-        ])
-      })
-  }, [])
+        ])      })  }, [])
+
+  // Sync local build numbers state with store
+  useEffect(() => {
+    if (sinkSelection.quantity > 0 && sinkSelection.buildNumbers.length > 0) {
+      const syncedBuildNumbers = sinkSelection.buildNumbers.map((buildNumber, index) => ({
+        id: (index + 1).toString(),
+        buildNumber: buildNumber,
+        isValid: buildNumber.length >= 3 && !sinkSelection.buildNumbers.filter((bn, i) => i !== index).includes(buildNumber)
+      }))
+      
+      // Only update if different to avoid infinite loops
+      if (JSON.stringify(syncedBuildNumbers) !== JSON.stringify(buildNumbers)) {
+        setBuildNumbers(syncedBuildNumbers)
+      }
+    } else if (sinkSelection.quantity > 0) {
+      // Initialize empty build numbers if quantity is set but no build numbers exist
+      const emptyBuildNumbers = Array.from({ length: sinkSelection.quantity }, (_, i) => ({
+        id: (i + 1).toString(),
+        buildNumber: '',
+        isValid: false
+      }))
+      setBuildNumbers(emptyBuildNumbers)
+    }
+  }, [sinkSelection.quantity, sinkSelection.buildNumbers])
 
   const handleFamilyChange = (family: string) => {
     if (family === 'ENDOSCOPE' || family === 'INSTROSINK') {
@@ -49,7 +71,6 @@ export function SinkSelectionStep() {
     }
     updateSinkSelection({ sinkFamily: family })
   }
-
   const handleQuantityChange = (quantity: number) => {
     updateSinkSelection({ quantity })
     
@@ -71,9 +92,10 @@ export function SinkSelectionStep() {
     }
     
     setBuildNumbers(newBuildNumbers)
-    updateSinkSelection({ buildNumbers: newBuildNumbers.map(bn => bn.buildNumber).filter(Boolean) })
+    // Update store with current build numbers (even if empty)
+    const allBuildNumbers = newBuildNumbers.map(bn => bn.buildNumber)
+    updateSinkSelection({ buildNumbers: allBuildNumbers })
   }
-
   const handleBuildNumberChange = (index: number, value: string) => {
     const newBuildNumbers = [...buildNumbers]
     newBuildNumbers[index] = {
@@ -83,11 +105,9 @@ export function SinkSelectionStep() {
     }
     setBuildNumbers(newBuildNumbers)
     
-    // Update store with valid build numbers
-    const validBuildNumbers = newBuildNumbers
-      .filter(bn => bn.isValid)
-      .map(bn => bn.buildNumber)
-    updateSinkSelection({ buildNumbers: validBuildNumbers })
+    // Update store with all build numbers (not just valid ones)
+    const allBuildNumbers = newBuildNumbers.map(bn => bn.buildNumber)
+    updateSinkSelection({ buildNumbers: allBuildNumbers })
   }
 
   const isDuplicateBuildNumber = (buildNumber: string, currentIndex: number): boolean => {

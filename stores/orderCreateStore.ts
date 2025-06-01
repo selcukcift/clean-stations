@@ -167,13 +167,16 @@ export const useOrderCreateStore = create<OrderCreateState>()(
         const state = get()
         
         switch (step) {
-          case 1:
-            const { poNumber, customerName, salesPerson, wantDate } = state.customerInfo
+          case 1:            const { poNumber, customerName, salesPerson, wantDate } = state.customerInfo
             return !!(poNumber && customerName && salesPerson && wantDate)
           
           case 2:
-            const { sinkModelId, quantity, buildNumbers } = state.sinkSelection
-            return !!(sinkModelId && quantity > 0 && buildNumbers.length === quantity)
+            const { sinkFamily, quantity, buildNumbers } = state.sinkSelection
+            // Check that family is selected, quantity is set, and all build numbers are valid
+            const hasValidBuildNumbers = buildNumbers.length === quantity && 
+              buildNumbers.every(bn => bn && bn.length >= 3) &&
+              new Set(buildNumbers).size === buildNumbers.length // Check uniqueness
+            return !!(sinkFamily && quantity > 0 && hasValidBuildNumbers)
           
           case 3:
             // Check if all sinks are configured

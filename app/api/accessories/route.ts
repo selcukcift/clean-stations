@@ -2,9 +2,18 @@ import { NextRequest, NextResponse } from 'next/server'
 // [Per Coding Prompt Chains v5 - Hybrid Backend]
 // Use src/services/accessoriesService.js for all accessory data
 const accessoriesService = require('@/src/services/accessoriesService')
+import { getAuthUser } from '@/lib/nextAuthUtils'
 
 export async function GET(request: NextRequest) {
   try {
+    // Add authentication as per Prompt 2.B
+    const user = await getAuthUser(request)
+    if (!user) {
+      return NextResponse.json(
+        { success: false, message: 'Authentication required' },
+        { status: 401 }
+      )
+    }
     const { searchParams } = new URL(request.url)
     const type = searchParams.get('type')
 

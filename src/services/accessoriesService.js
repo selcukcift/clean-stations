@@ -8,13 +8,13 @@ const prisma = new PrismaClient()
  * See v5 Coding Prompt Chains, Prompt 2.2
  */
 async function getAccessoryCategories() {
-  // Find subcategories under category code '720' (ACCESSORY LIST)
-  return prisma.category.findMany({
+  // Find subcategories under category ID '720' (ACCESSORY LIST)
+  return prisma.subcategory.findMany({
     where: {
-      parentCode: '720',
+      categoryId: '720', // Assuming '720' is the ID of the main "ACCESSORY LIST" category
     },
     select: {
-      code: true,
+      subcategoryId: true, // This is the 'code' used by the frontend
       name: true,
     },
     orderBy: { name: 'asc' },
