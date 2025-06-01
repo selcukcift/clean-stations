@@ -2,6 +2,7 @@ const { prisma } = require('../src/config');
 const fs = require('fs').promises;
 const path = require('path');
 const { execSync } = require('child_process'); // Added for running shell commands
+const bcrypt = require('bcryptjs');
 
 async function resetDatabase() {
   console.log('Attempting to reset database...');
@@ -159,6 +160,77 @@ async function main() {
         }
       }
     }
+  }
+
+  // Seed Users (one per major role)
+  console.log('Seeding users...');
+  const usersToSeed = [
+    {
+      username: 'admin',
+      password: 'admin123',
+      fullName: 'System Admin',
+      role: 'ADMIN',
+      initials: 'SA',
+      email: 'admin@torvan.local',
+    },
+    {
+      username: 'coordinator',
+      password: 'coordinator123',
+      fullName: 'Production Coordinator',
+      role: 'PRODUCTION_COORDINATOR',
+      initials: 'PC',
+      email: 'coordinator@torvan.local',
+    },
+    {
+      username: 'procurement',
+      password: 'procure123',
+      fullName: 'Procurement Specialist',
+      role: 'PROCUREMENT_SPECIALIST',
+      initials: 'PS',
+      email: 'procurement@torvan.local',
+    },
+    {
+      username: 'qc',
+      password: 'qc123',
+      fullName: 'Quality Control',
+      role: 'QC_PERSON',
+      initials: 'QC',
+      email: 'qc@torvan.local',
+    },
+    {
+      username: 'assembler',
+      password: 'assemble123',
+      fullName: 'Assembler',
+      role: 'ASSEMBLER',
+      initials: 'AS',
+      email: 'assembler@torvan.local',
+    },
+    {
+      username: 'service',
+      password: 'service123',
+      fullName: 'Service Department',
+      role: 'SERVICE_DEPARTMENT',
+      initials: 'SD',
+      email: 'service@torvan.local',
+    },
+  ];
+
+  for (const user of usersToSeed) {
+    const passwordHash = await bcrypt.hash(user.password, 10);
+    await prisma.user.upsert({
+      where: { username: user.username },
+      update: {},
+      create: {
+        username: user.username,
+        passwordHash,
+        fullName: user.fullName,
+        role: user.role,
+        isActive: true,
+        initials: user.initials,
+        email: user.email,
+      },
+    });
+    console.log(`Seeded user: ${user.username} (${user.role})`);
   }
 
   console.log('Seeding finished successfully.');

@@ -4,7 +4,7 @@ const nextConfig = {
     return [
       {
         source: '/api/:path*',
-        destination: 'http://localhost:3001/api/:path*', // Backend server
+        destination: 'http://localhost:3004/api/:path*', // Backend server (updated to 3004)
       },
     ]
   },

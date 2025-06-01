@@ -3,6 +3,7 @@ import { PrismaClient } from '@prisma/client'
 import { z } from 'zod'
 import { cookies } from 'next/headers'
 import jwt from 'jsonwebtoken'
+import { generateBOMForOrder } from '@/src/services/bomService'
 
 const prisma = new PrismaClient()
 
@@ -89,147 +90,6 @@ async function getAuthenticatedUser(request: NextRequest) {
     return user
   } catch (error) {
     throw new Error('Invalid authentication token')
-  }
-}
-
-// BOM Generation Service
-async function generateBOM(orderId: string, configurations: Record<string, any>) {
-  try {
-    // Create a comprehensive BOM for the order
-    const bom = await prisma.bom.create({
-      data: {
-        orderId: orderId,
-        buildNumber: null, // Order-wide BOM
-      }
-    })
-
-    const bomItems = []
-
-    // Add system items (always included)
-    bomItems.push({
-      bomId: bom.id,
-      partIdOrAssemblyId: 'SYSTEM-MANUAL',
-      name: 'User Manual',
-      quantity: 1,
-      itemType: 'SYSTEM',
-      category: 'SYSTEM'
-    })
-
-    // Process each build configuration
-    for (const [buildNumber, config] of Object.entries(configurations)) {
-      // Add sink body assembly
-      if (config.sinkModelId) {
-        bomItems.push({
-          bomId: bom.id,
-          partIdOrAssemblyId: config.sinkModelId,
-          name: `Sink Body ${config.sinkModelId}`,
-          quantity: 1,
-          itemType: 'ASSEMBLY',
-          category: 'SINK_BODY'
-        })
-      }
-
-      // Add legs and feet
-      if (config.legsTypeId) {
-        bomItems.push({
-          bomId: bom.id,
-          partIdOrAssemblyId: config.legsTypeId,
-          name: `Legs Kit ${config.legsTypeId}`,
-          quantity: 1,
-          itemType: 'ASSEMBLY',
-          category: 'LEGS'
-        })
-      }
-
-      if (config.feetTypeId) {
-        bomItems.push({
-          bomId: bom.id,
-          partIdOrAssemblyId: config.feetTypeId,
-          name: `Feet ${config.feetTypeId}`,
-          quantity: 1,
-          itemType: 'PART',
-          category: 'FEET'
-        })
-      }
-
-      // Add pegboard if configured
-      if (config.pegboard && config.pegboardTypeId) {
-        bomItems.push({
-          bomId: bom.id,
-          partIdOrAssemblyId: config.pegboardTypeId,
-          name: `Pegboard ${config.pegboardTypeId}`,
-          quantity: 1,
-          itemType: 'ASSEMBLY',
-          category: 'PEGBOARD'
-        })
-      }
-
-      // Add basin assemblies
-      if (config.basins && config.basins.length > 0) {
-        config.basins.forEach((basin: any, index: number) => {
-          if (basin.basinTypeId) {
-            bomItems.push({
-              bomId: bom.id,
-              partIdOrAssemblyId: basin.basinTypeId,
-              name: `Basin ${basin.basinTypeId} #${index + 1}`,
-              quantity: basin.basinCount || 1,
-              itemType: 'ASSEMBLY',
-              category: 'BASIN'
-            })
-          }
-        })
-      }
-
-      // Add faucet configuration
-      if (config.faucet?.faucetTypeId) {
-        bomItems.push({
-          bomId: bom.id,
-          partIdOrAssemblyId: config.faucet.faucetTypeId,
-          name: `Faucet ${config.faucet.faucetTypeId}`,
-          quantity: config.faucet.quantity || 1,
-          itemType: 'ASSEMBLY',
-          category: 'FAUCET'
-        })
-      }
-
-      // Add sprayer system
-      if (config.sprayer?.hasSprayerSystem && config.sprayer.sprayerTypeIds) {
-        config.sprayer.sprayerTypeIds.forEach((sprayerId: string) => {
-          bomItems.push({
-            bomId: bom.id,
-            partIdOrAssemblyId: sprayerId,
-            name: `Sprayer ${sprayerId}`,
-            quantity: 1,
-            itemType: 'ASSEMBLY',
-            category: 'SPRAYER'
-          })
-        })
-      }
-
-      // Add control box if needed
-      if (config.controlBoxId) {
-        bomItems.push({
-          bomId: bom.id,
-          partIdOrAssemblyId: config.controlBoxId,
-          name: `Control Box ${config.controlBoxId}`,
-          quantity: 1,
-          itemType: 'ASSEMBLY',
-          category: 'CONTROL_BOX'
-        })
-      }
-    }
-
-    // Bulk create BOM items
-    if (bomItems.length > 0) {
-      await prisma.bomItem.createMany({
-        data: bomItems
-      })
-    }
-
-    return bom.id
-  } catch (error) {
-    console.error('Error generating BOM:', error)
-    throw new Error('Failed to generate BOM')
   }
 }
 
@@ -357,8 +217,13 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // Generate BOM
-    const bomId = await generateBOM(order.id, configurations)
+    // Generate BOM using the service
+    const bomResult = await generateBOMForOrder({
+      customer: customerInfo,
+      configurations,
+      accessories,
+      buildNumbers: sinkSelection.buildNumbers
+    })
 
     // Create order history log
     await prisma.orderHistoryLog.create({
@@ -374,7 +239,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       orderId: order.id,
-      bomId: bomId,
+      bom: bomResult,
       message: 'Order created successfully'
     })
 
@@ -484,3 +349,6 @@ export async function GET(request: NextRequest) {
     )
   }
 }
+
+// [Per Coding Prompt Chains v5] To fix linter error for 'jsonwebtoken', run:
+// npm install --save-dev @types/jsonwebtoken

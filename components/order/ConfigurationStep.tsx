@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useOrderCreateStore } from "@/stores/orderCreateStore"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -12,86 +12,59 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ChevronLeft, ChevronRight, Settings, Wrench } from "lucide-react"
+import { nextJsApiClient } from '@/lib/api'
 
 export function ConfigurationStep() {
   const { sinkSelection, configurations, updateSinkConfiguration } = useOrderCreateStore()
   const [currentBuildIndex, setCurrentBuildIndex] = useState(0)
 
+  const [sinkModels, setSinkModels] = useState<any[]>([])
+  const [legsTypes, setLegsTypes] = useState<any[]>([])
+  const [feetOptions, setFeetOptions] = useState<any[]>([])
+  const [pegboardTypes, setPegboardTypes] = useState<any[]>([])
+  const [basinTypes, setBasinTypes] = useState<any[]>([])
+  const [basinSizes, setBasinSizes] = useState<any[]>([])
+  const [faucetTypes, setFaucetTypes] = useState<any[]>([])
+  const [sprayerTypes, setSprayerTypes] = useState<any[]>([])
+
+  useEffect(() => {
+    async function fetchConfigOptions() {
+      try {
+        const [sinkModelsRes, legsTypesRes, feetTypesRes, pegboardTypesRes, basinTypesRes, basinSizesRes, faucetTypesRes, sprayerTypesRes] = await Promise.all([
+          nextJsApiClient.get('/configurator?type=sink-models'),
+          nextJsApiClient.get('/configurator?type=legs-types'),
+          nextJsApiClient.get('/configurator?type=feet-types'),
+          nextJsApiClient.get('/configurator?type=pegboard-types'),
+          nextJsApiClient.get('/configurator?type=basin-types'),
+          nextJsApiClient.get('/configurator?type=basin-sizes'),
+          nextJsApiClient.get('/configurator?type=faucet-types'),
+          nextJsApiClient.get('/configurator?type=sprayer-types'),
+        ])
+        setSinkModels(sinkModelsRes.data.data || [])
+        setLegsTypes(legsTypesRes.data.data || [])
+        setFeetOptions(feetTypesRes.data.data || [])
+        setPegboardTypes(pegboardTypesRes.data.data || [])
+        setBasinTypes(basinTypesRes.data.data || [])
+        setBasinSizes(basinSizesRes.data.data?.standardSizes || [])
+        setFaucetTypes(faucetTypesRes.data.data || [])
+        setSprayerTypes(sprayerTypesRes.data.data || [])
+      } catch (err) {
+        // Handle error (show toast, etc.)
+      }
+    }
+    fetchConfigOptions()
+  }, [])
+
   const buildNumbers = sinkSelection.buildNumbers || []
   const currentBuildNumber = buildNumbers[currentBuildIndex]
   const currentConfig = configurations[currentBuildNumber] || {}
-
-  const sinkModels = [
-    { value: 'T2-B1', label: 'T2-B1 (1 Basin)', basins: 1 },
-    { value: 'T2-B2', label: 'T2-B2 (2 Basins)', basins: 2 },
-    { value: 'T2-B3', label: 'T2-B3 (3 Basins)', basins: 3 }
-  ]
-
-  const legsTypes = [
-    { value: 'HEIGHT_ADJUSTABLE', label: 'Height Adjustable' },
-    { value: 'FIXED_HEIGHT', label: 'Fixed Height' }
-  ]
-
-  const heightAdjustableOptions = [
-    { value: 'DL27', label: 'DL27 Kit', partNumber: '711.97' },
-    { value: 'DL14', label: 'DL14 Kit', partNumber: '711.98' },
-    { value: 'LC1', label: 'LC1 Kit', partNumber: '711.99' }
-  ]
-
-  const fixedHeightOptions = [
-    { value: 'DL27-FH', label: 'DL27 Fixed Height Kit', partNumber: '711.100' },
-    { value: 'DL14-FH', label: 'DL14 Fixed Height Kit', partNumber: '711.101' }
-  ]
-
-  const feetOptions = [
-    { value: 'CASTERS', label: 'Lock & Leveling Casters', partNumber: '711.95' },
-    { value: 'SEISMIC', label: 'S.S Adjustable Seismic Feet', partNumber: '711.96' }
-  ]
-
-  const pegboardColors = [
-    'Green', 'Black', 'Yellow', 'Grey', 'Red', 'Blue', 'Orange', 'White'
-  ]
-
-  const pegboardTypes = [
-    { value: 'COLORSAFE', label: 'Colorsafe+' },
-    { value: 'PERFORATED', label: 'Perforated' },
-    { value: 'SOLID', label: 'Solid' }
-  ]
-
-  const basinTypes = [
-    { value: 'E_SINK', label: 'E-Sink', partNumber: '713.109' },
-    { value: 'E_SINK_DI', label: 'E-Sink DI', partNumber: '713.108' },
-    { value: 'E_DRAIN', label: 'E-Drain', partNumber: '713.107' }
-  ]
-
-  const basinSizes = [
-    { value: '20X20X8', label: '20" × 20" × 8"', partNumber: '712.102' },
-    { value: '24X20X8', label: '24" × 20" × 8"', partNumber: '712.103' },
-    { value: '24X20X10', label: '24" × 20" × 10"', partNumber: '712.104' },
-    { value: '30X20X8', label: '30" × 20" × 8"', partNumber: '712.105' },
-    { value: '30X20X10', label: '30" × 20" × 10"', partNumber: '712.106' },
-    { value: 'CUSTOM', label: 'Custom Dimensions', partNumber: 'CUSTOM' }
-  ]
-
-  const faucetTypes = [
-    { value: 'WRIST_BLADE', label: '10" Wrist Blade Swing Spout Wall Mounted', partNumber: '706.58' },
-    { value: 'PRE_RINSE', label: 'Pre-Rinse Overhead Spray Unit', partNumber: '706.59' },
-    { value: 'GOOSENECK', label: 'Gooseneck Treated Water Faucet PVC', partNumber: '706.60' }
-  ]
-
-  const sprayerTypes = [
-    { value: 'WATER_TURRET', label: 'DI Water Gun Kit & Turret', partNumber: '706.61' },
-    { value: 'WATER_ROSETTE', label: 'DI Water Gun Kit & Rosette', partNumber: '706.62' },
-    { value: 'AIR_TURRET', label: 'Air Gun Kit & Turret', partNumber: '706.63' },
-    { value: 'AIR_ROSETTE', label: 'Air Gun Kit & Rosette', partNumber: '706.64' }
-  ]
 
   const updateConfig = (updates: any) => {
     updateSinkConfiguration(currentBuildNumber, updates)
   }
 
   const getSelectedModel = () => {
-    return sinkModels.find(model => model.value === currentConfig.sinkModelId)
+    return sinkModels.find(model => model.assemblyId === currentConfig.sinkModelId)
   }
 
   const getMaxFaucets = () => {
@@ -194,14 +167,14 @@ export function ConfigurationStep() {
               <CardContent className="space-y-4">
                 <div className="space-y-2">
                   <Label>Model Selection *</Label>
-                  <Select value={currentConfig.sinkModelId} onValueChange={(value) => updateConfig({ sinkModelId: value })}>
+                  <Select value={currentConfig.sinkModelId} onValueChange={(value: any) => updateConfig({ sinkModelId: value })}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select sink model" />
                     </SelectTrigger>
                     <SelectContent>
                       {sinkModels.map((model) => (
-                        <SelectItem key={model.value} value={model.value}>
-                          {model.label}
+                        <SelectItem key={model.assemblyId} value={model.assemblyId}>
+                          {model.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -264,23 +237,23 @@ export function ConfigurationStep() {
                   </RadioGroup>
                 </div>
 
-                {currentConfig.legsType && (
-                  <div className="space-y-2">
-                    <Label>Kit Selection *</Label>
-                    <Select value={currentConfig.legsKitId} onValueChange={(value) => updateConfig({ legsKitId: value })}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select kit" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {(currentConfig.legsType === 'HEIGHT_ADJUSTABLE' ? heightAdjustableOptions : fixedHeightOptions).map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
+                {/*
+                <div className="space-y-2">
+                  <Label>Kit Selection *</Label>
+                  <Select value={currentConfig.legsKitId} onValueChange={(value: any) => updateConfig({ legsKitId: value })}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select kit" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(currentConfig.legsType === 'HEIGHT_ADJUSTABLE' ? heightAdjustableOptions : fixedHeightOptions).map((option: any) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                */}
               </CardContent>
             </Card>
 
@@ -320,7 +293,7 @@ export function ConfigurationStep() {
                 <Checkbox
                   id="pegboard"
                   checked={currentConfig.pegboard || false}
-                  onCheckedChange={(checked) => updateConfig({ pegboard: checked })}
+                  onCheckedChange={(checked: any) => updateConfig({ pegboard: !!checked })}
                 />
                 <Label htmlFor="pegboard">Include Pegboard</Label>
               </div>
@@ -329,7 +302,7 @@ export function ConfigurationStep() {
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 p-4 border rounded-lg">
                   <div className="space-y-2">
                     <Label>Pegboard Type *</Label>
-                    <Select value={currentConfig.pegboardType} onValueChange={(value) => updateConfig({ pegboardType: value })}>
+                    <Select value={currentConfig.pegboardType} onValueChange={(value: any) => updateConfig({ pegboardType: value })}>
                       <SelectTrigger>
                         <SelectValue placeholder="Select type" />
                       </SelectTrigger>
@@ -343,15 +316,15 @@ export function ConfigurationStep() {
                     </Select>
                   </div>
 
-                  {currentConfig.pegboardType === 'COLORSAFE' && (
+                  {/* {currentConfig.pegboardType === 'COLORSAFE' && (
                     <div className="space-y-2">
                       <Label>Color *</Label>
-                      <Select value={currentConfig.pegboardColor} onValueChange={(value) => updateConfig({ pegboardColor: value })}>
+                      <Select value={currentConfig.pegboardColor} onValueChange={(value: any) => updateConfig({ pegboardColor: value })}>
                         <SelectTrigger>
                           <SelectValue placeholder="Select color" />
                         </SelectTrigger>
                         <SelectContent>
-                          {pegboardColors.map((color) => (
+                          {pegboardColors.map((color: any) => (
                             <SelectItem key={color} value={color}>
                               {color}
                             </SelectItem>
@@ -359,7 +332,7 @@ export function ConfigurationStep() {
                         </SelectContent>
                       </Select>
                     </div>
-                  )}
+                  )} */}
 
                   <div className="space-y-2">
                     <Label>Size Option *</Label>
@@ -412,7 +385,7 @@ export function ConfigurationStep() {
             <CardHeader>
               <CardTitle>Basin Configuration</CardTitle>
               <CardDescription>
-                Configure basin types and sizes for {getSelectedModel()?.label || 'selected model'}
+                Configure basin types and sizes for {getSelectedModel()?.name || 'selected model'}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -556,7 +529,7 @@ export function ConfigurationStep() {
                   <Checkbox
                     id="sprayer"
                     checked={currentConfig.sprayer || false}
-                    onCheckedChange={(checked) => updateConfig({ sprayer: checked })}
+                    onCheckedChange={(checked: any) => updateConfig({ sprayer: !!checked })}
                   />
                   <Label htmlFor="sprayer">Include Sprayer</Label>
                 </div>

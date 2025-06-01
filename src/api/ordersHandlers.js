@@ -1,3 +1,7 @@
+// DEPRECATED (2025-06-01): This handler is now replaced by Next.js API Routes in app/api/orders/*.ts as per 'Coding Prompt Chains for Torvan Medical Workflow App Expansion (v5 - Hybrid Backend)'.
+// This file will be removed in a future version. Do not add new logic here.
+// See: resources/Coding Prompt Chains for Torvan Medical Workflow App Expansion (v4 - Next.js, Node.js, Prisma, PostgreSQL).md
+
 const { PrismaClient } = require('@prisma/client');
 const { parseJSONBody, sendJSONResponse } = require('../lib/requestUtils');
 

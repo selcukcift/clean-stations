@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useOrderCreateStore } from "@/stores/orderCreateStore"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { Plus, Trash2, AlertTriangle, Construction } from "lucide-react"
+import { nextJsApiClient } from '@/lib/api'
 
 interface BuildNumberEntry {
   id: string
@@ -21,12 +22,24 @@ export function SinkSelectionStep() {
   const [buildNumbers, setBuildNumbers] = useState<BuildNumberEntry[]>([
     { id: '1', buildNumber: '', isValid: false }
   ])
+  const [sinkFamilies, setSinkFamilies] = useState<{ value: string, label: string, available: boolean }[]>([])
 
-  const sinkFamilies = [
-    { value: 'MDRD', label: 'MDRD CleanStation', available: true },
-    { value: 'ENDOSCOPE', label: 'Endoscope CleanStation', available: false },
-    { value: 'INSTROSINK', label: 'InstroSink', available: false }
-  ]
+  useEffect(() => {
+    nextJsApiClient.get('/configurator?type=sink-families')
+      .then(res => {
+        const families = res.data.data.map((fam: any) => ({
+          value: fam.code,
+          label: fam.name || fam.code,
+          available: fam.available !== false // default to true if not specified
+        }))
+        setSinkFamilies(families)
+      })
+      .catch(() => {
+        setSinkFamilies([
+          { value: 'MDRD', label: 'MDRD CleanStation', available: true }
+        ])
+      })
+  }, [])
 
   const handleFamilyChange = (family: string) => {
     if (family === 'ENDOSCOPE' || family === 'INSTROSINK') {
@@ -166,7 +179,7 @@ export function SinkSelectionStep() {
               <Label htmlFor="quantity">Number of Sinks *</Label>
               <Select 
                 value={sinkSelection.quantity?.toString()} 
-                onValueChange={(value) => handleQuantityChange(parseInt(value))}
+                onValueChange={(value: string) => handleQuantityChange(parseInt(value))}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select quantity" />

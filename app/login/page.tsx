@@ -14,7 +14,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { useToast } from "@/hooks/use-toast"
 import { useAuthStore } from "@/stores/authStore"
-import { api } from "@/lib/api"
+import { api, plainNodeApiClient } from "@/lib/api"
 
 const loginSchema = z.object({
   username: z.string().min(1, "Username is required").min(3, "Username must be at least 3 characters"),
@@ -42,7 +42,7 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
-      const response = await api.post('/auth/login', {
+      const response = await plainNodeApiClient.post('/auth/login', {
         username: values.username,
         password: values.password,
       })

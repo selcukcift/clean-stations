@@ -1,4 +1,6 @@
-//Placeholder for configuratorHandlers.js
+// DEPRECATED (2025-06-01): Configurator & accessories data is now served by Next.js API Routes (app/api/configurator/route.ts & app/api/accessories/route.ts) which call backend services, as per 'Coding Prompt Chains for Torvan Medical Workflow App Expansion (v5 - Hybrid Backend)'.
+// This file will be removed in a future version. Do not add new logic here.
+// See: resources/Coding Prompt Chains for Torvan Medical Workflow App Expansion (v4 - Next.js, Node.js, Prisma, PostgreSQL).md
 const configuratorService = require('../services/configuratorService');
 const { sendResponse, parseRequestBody } = require('../lib/requestUtils');
 const url = require('url');

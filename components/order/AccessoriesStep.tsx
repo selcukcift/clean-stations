@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Plus, Minus, ShoppingCart, Package, Search } from "lucide-react"
+import { nextJsApiClient } from '@/lib/api'
 
 interface Accessory {
   id: string
@@ -23,6 +24,7 @@ interface Accessory {
 }
 
 interface SelectedAccessory {
+  assemblyId: string
   accessoryId: string
   name: string
   partNumber?: string
@@ -36,107 +38,27 @@ export function AccessoriesStep() {
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('ALL')
   const [loading, setLoading] = useState(false)
+  const [categories, setCategories] = useState<{ value: string, label: string }[]>([])
 
   const buildNumbers = sinkSelection.buildNumbers || []
 
-  // Mock accessory data - In real implementation, this would come from API
-  const mockAccessories: Accessory[] = [
-    {
-      id: 'ACC001',
-      name: 'Air Gun Kit & Turret',
-      category: 'SPRAYERS',
-      partNumber: '706.63',
-      description: 'Complete air gun kit with turret mounting system',
-      type: 'KIT'
-    },
-    {
-      id: 'ACC002',
-      name: 'DI Water Gun Kit & Rosette',
-      category: 'SPRAYERS',
-      partNumber: '706.62',
-      description: 'Deionized water gun kit with rosette mounting',
-      type: 'KIT'
-    },
-    {
-      id: 'ACC003',
-      name: 'Pegboard Overhead Light Kit',
-      category: 'LIGHTING',
-      partNumber: 'T2-OHL-MDRD-KIT',
-      description: 'LED lighting kit for pegboard installations',
-      type: 'KIT'
-    },
-    {
-      id: 'ACC004',
-      name: 'Basin Light Kit - E-Sink',
-      category: 'LIGHTING',
-      partNumber: '706.68',
-      description: 'Specialized lighting for E-Sink basins',
-      type: 'KIT'
-    },
-    {
-      id: 'ACC005',
-      name: 'Basin Light Kit - E-Drain',
-      category: 'LIGHTING',
-      partNumber: '706.67',
-      description: 'Specialized lighting for E-Drain basins',
-      type: 'KIT'
-    },
-    {
-      id: 'ACC006',
-      name: 'P-Trap Disinfection Drain Unit',
-      category: 'DRAINAGE',
-      partNumber: '706.65',
-      description: 'Disinfection unit for drain systems',
-      type: 'ACCESSORY'
-    },
-    {
-      id: 'ACC007',
-      name: 'Work Surface Extension',
-      category: 'SURFACES',
-      partNumber: 'T2-WS-EXT-24',
-      description: '24" work surface extension',
-      type: 'ACCESSORY'
-    },
-    {
-      id: 'ACC008',
-      name: 'Storage Cabinet - Lower',
-      category: 'STORAGE',
-      partNumber: 'T2-CAB-LOW-24',
-      description: 'Lower storage cabinet 24" wide',
-      type: 'ACCESSORY'
-    },
-    {
-      id: 'ACC009',
-      name: 'Ultrasonic Cleaner Bracket',
-      category: 'BRACKETS',
-      partNumber: 'T2-USC-BRKT',
-      description: 'Mounting bracket for ultrasonic cleaners',
-      type: 'ACCESSORY'
-    },
-    {
-      id: 'ACC010',
-      name: 'Instrument Basket Set',
-      category: 'BASKETS',
-      partNumber: 'T2-INST-BASKET-SET',
-      description: 'Set of perforated instrument baskets',
-      type: 'KIT'
-    }
-  ]
-
-  const categories = [
-    { value: 'ALL', label: 'All Categories' },
-    { value: 'SPRAYERS', label: 'Sprayers & Guns' },
-    { value: 'LIGHTING', label: 'Lighting' },
-    { value: 'DRAINAGE', label: 'Drainage' },
-    { value: 'SURFACES', label: 'Work Surfaces' },
-    { value: 'STORAGE', label: 'Storage' },
-    { value: 'BRACKETS', label: 'Brackets & Mounts' },
-    { value: 'BASKETS', label: 'Baskets & Containers' }
-  ]
-
   useEffect(() => {
-    // In real implementation, fetch accessories from API
-    setAvailableAccessories(mockAccessories)
+    setLoading(true)
+    // Fetch categories
+    nextJsApiClient.get('/accessories?type=categories')
+      .then(res => {
+        const apiCategories = res.data.data.map((cat: any) => ({
+          value: cat.code,
+          label: cat.name || cat.code
+        }))
+        setCategories([{ value: 'ALL', label: 'All Categories' }, ...apiCategories])
+      })
+      .catch(() => setCategories([{ value: 'ALL', label: 'All Categories' }]))
+
+    // Fetch all accessories
+    nextJsApiClient.get('/accessories?type=all')
+      .then(res => setAvailableAccessories(res.data.data))
+      .finally(() => setLoading(false))
   }, [])
 
   const filteredAccessories = availableAccessories.filter(accessory => {
@@ -152,9 +74,15 @@ export function AccessoriesStep() {
     return accessory?.quantity || 0
   }
 
-  const updateAccessoryQuantity = (accessoryId: string, accessoryName: string, partNumber: string | undefined, buildNumber: string, quantity: number) => {
+  const updateAccessoryQuantity = (
+    accessoryId: string,
+    accessoryName: string,
+    partNumber: string | undefined,
+    buildNumber: string,
+    quantity: number
+  ) => {
     const currentAccessories = accessories[buildNumber] || []
-    let updatedAccessories: SelectedAccessory[]
+    let updatedAccessories: import('@/stores/orderCreateStore').SelectedAccessory[]
 
     if (quantity === 0) {
       // Remove accessory
@@ -172,6 +100,7 @@ export function AccessoriesStep() {
         updatedAccessories = [
           ...currentAccessories,
           {
+            assemblyId: `${accessoryId}-${buildNumber}`,
             accessoryId,
             name: accessoryName,
             partNumber,
@@ -181,7 +110,6 @@ export function AccessoriesStep() {
         ]
       }
     }
-
     updateAccessories(buildNumber, updatedAccessories)
   }
 
@@ -232,10 +160,9 @@ export function AccessoriesStep() {
             <div className="sm:w-64">
               <Tabs value={selectedCategory} onValueChange={setSelectedCategory}>
                 <TabsList className="grid grid-cols-2 lg:grid-cols-4 w-full">
-                  <TabsTrigger value="ALL">All</TabsTrigger>
-                  <TabsTrigger value="SPRAYERS">Sprayers</TabsTrigger>
-                  <TabsTrigger value="LIGHTING">Lighting</TabsTrigger>
-                  <TabsTrigger value="STORAGE">Storage</TabsTrigger>
+                  {categories.map((cat) => (
+                    <TabsTrigger key={cat.value} value={cat.value}>{cat.label}</TabsTrigger>
+                  ))}
                 </TabsList>
               </Tabs>
             </div>
@@ -262,7 +189,7 @@ export function AccessoriesStep() {
                         <div className="flex-1">
                           <div className="flex items-center space-x-2 mb-2">
                             <h4 className="font-medium text-slate-900">{accessory.name}</h4>
-                            <Badge variant="outline" size="sm">
+                            <Badge variant="outline">
                               {accessory.type}
                             </Badge>
                           </div>
