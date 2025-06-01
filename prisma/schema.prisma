@@ -1,0 +1,97 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Part {
+  partId                 String    @id @unique @map("PartID")
+  name                   String
+  manufacturerPartNumber String?
+  type                   PartType
+  status                 Status
+  photoURL               String?
+  technicalDrawingURL    String?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+  assemblyComponents     AssemblyComponent[]
+}
+
+model Assembly {
+  assemblyId      String    @id @unique @map("AssemblyID")
+  name            String
+  type            AssemblyType
+  categoryCode    String?
+  subcategoryCode String?
+  workInstructionId String?
+  qrData          String?
+  kitComponentsJson String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  components         AssemblyComponent[] @relation("ParentComponents")
+  childOfAssemblies  AssemblyComponent[] @relation("ChildComponents")
+  subcategories      Subcategory[]       @relation("SubcategoryAssemblies")
+}
+
+model AssemblyComponent {
+  id        Int     @id @default(autoincrement())
+  quantity  Int
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  parentAssembly   Assembly @relation("ParentComponents", fields: [parentAssemblyId], references: [assemblyId])
+  parentAssemblyId String
+
+  childPart   Part?   @relation(fields: [childPartId], references: [partId])
+  childPartId String?
+
+  childAssembly   Assembly? @relation("ChildComponents", fields: [childAssemblyId], references: [assemblyId])
+  childAssemblyId String?
+}
+
+model Category {
+  categoryId  String   @id @unique
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  subcategories Subcategory[]
+}
+
+model Subcategory {
+  subcategoryId String   @id @unique
+  name          String
+  description   String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  category   Category   @relation(fields: [categoryId], references: [categoryId])
+  categoryId String
+  assemblies Assembly[] @relation("SubcategoryAssemblies")
+}
+
+enum PartType {
+  COMPONENT
+  MATERIAL
+}
+
+enum Status {
+  ACTIVE
+  INACTIVE
+}
+
+enum AssemblyType {
+  SIMPLE
+  COMPLEX
+  SERVICE_PART
+  KIT
+}

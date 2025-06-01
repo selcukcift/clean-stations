@@ -31,18 +31,18 @@ class SinkConfigApp {
     async loadData() {
         try {
             const [assembliesResponse, partsResponse, categoriesResponse] = await Promise.all([
-                fetch('./assemblies.json'),
-                fetch('./parts.json'),
-                fetch('./categories.json')
+                fetch('/api/assemblies'), // Updated endpoint
+                fetch('/api/parts'),       // Updated endpoint
+                fetch('/api/categories')  // Updated endpoint
             ]);
 
             this.data.assemblies = await assembliesResponse.json();
             this.data.parts = await partsResponse.json();
             this.data.categories = await categoriesResponse.json();
 
-            console.log('Data loaded successfully');
+            console.log('Data loaded successfully from backend APIs');
         } catch (error) {
-            console.error('Error loading data:', error);
+            console.error('Error loading data from backend APIs:', error);
             alert('Error loading configuration data. Please refresh the page.');
         }
     }
@@ -381,7 +381,7 @@ class SinkConfigApp {
         }
     }
 
-    proceedToNextAccessoryOrStep() {
+    async proceedToNextAccessoryOrStep() { // Made async
         this.currentBuildIndex++;
         
         if (this.currentBuildIndex < this.orderData.buildNumbers.length) {
@@ -394,8 +394,35 @@ class SinkConfigApp {
             this.currentStep++;
             this.currentBuildIndex = 0;
             this.currentBuildNumber = null;
-            this.generateBOM();
-            this.displayReview();
+            
+            // Call backend to generate BOM
+            this.showLoading(true);
+            try {
+                const response = await fetch('/api/bom/generate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(this.orderData),
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+                }
+
+                this.bom = await response.json();
+                console.log('BOM received from backend:', this.bom);
+                this.displayReview();
+            } catch (error) {
+                console.error('Error generating BOM:', error);
+                alert(`Error generating BOM: ${error.message}. Please try again.`);
+                // Optionally, revert to a previous step or allow user to retry
+                this.currentStep--; // Go back to accessories step
+            } finally {
+                this.showLoading(false);
+            }
+            
             this.showStep(this.currentStep);
         }
     }
@@ -418,4 +445,4 @@ class SinkConfigApp {
 // Initialize the application when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
     window.sinkConfigApp = new SinkConfigApp();
-}); 
+});
