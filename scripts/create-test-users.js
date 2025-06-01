@@ -20,7 +20,7 @@ async function createTestUser() {
   try {
     console.log('Creating test user...');
     
-    const response = await axios.post('http://localhost:3001/api/auth/register', testUser, {
+    const response = await axios.post('http://localhost:3004/api/auth/register', testUser, {
       headers: {
         'Content-Type': 'application/json'
       }
@@ -94,7 +94,7 @@ async function createAllTestUsers() {
 
   for (const user of users) {
     try {
-      const response = await axios.post('http://localhost:3001/api/auth/register', user, {
+      const response = await axios.post('http://localhost:3004/api/auth/register', user, {
         headers: {
           'Content-Type': 'application/json'
         }

@@ -1,15 +1,36 @@
 "use client"
 
 import * as React from "react"
-import type { FieldPath, FieldValues, ControllerProps, FieldError } from "react-hook-form"
-import { Controller, useFormContext } from "react-hook-form"
+import type { FieldPath, FieldValues, ControllerProps, FieldError, UseFormReturn } from "react-hook-form"
+import { Controller, useFormContext, FormProvider } from "react-hook-form"
 
 import { cn } from "@/lib/utils"
 import { Label } from "@/components/ui/label"
 
-const Form = (props: React.FormHTMLAttributes<HTMLFormElement>) => {
-  return <form {...props} />
-}
+// Modify the Form component
+// The Form component now accepts all methods from useForm via props
+// and wraps its children with FormProvider.
+// It also renders the actual <form> element.
+type FormProps<TFieldValues extends FieldValues> = UseFormReturn<TFieldValues> & {
+  onSubmit: React.FormEventHandler<HTMLFormElement>; // Keep onSubmit for the form tag
+  children: React.ReactNode;
+  className?: string;
+};
+
+const Form = <TFieldValues extends FieldValues>({
+  children,
+  onSubmit,
+  className,
+  ...formMethods // Spread the rest of the useForm() return values here (control, formState, etc.)
+}: FormProps<TFieldValues>) => {
+  return (
+    <FormProvider {...formMethods}>
+      <form onSubmit={onSubmit} className={className}>
+        {children}
+      </form>
+    </FormProvider>
+  );
+};
 
 type FormFieldContextValue<
   TFieldValues extends FieldValues = FieldValues,

@@ -20,11 +20,10 @@ const NODE_ENV = process.env.NODE_ENV || ENVIRONMENTS.DEVELOPMENT;
 const SERVER_CONFIG = {
   port: parseInt(process.env.PORT) || 3001,
   host: process.env.HOST || 'localhost',
-  
-  // CORS settings
+    // CORS settings
   corsOrigins: process.env.CORS_ORIGINS 
     ? process.env.CORS_ORIGINS.split(',')
-    : ['http://localhost:3000', 'http://localhost:3001'],
+    : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3005'],
   
   // Security settings
   jwtSecret: process.env.JWT_SECRET || 'your-jwt-secret-key-change-in-production',

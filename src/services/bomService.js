@@ -143,117 +143,145 @@ async function generateBOMForOrder(orderData) {
         const config = configurations[buildNumber];
         if (!config) continue;
 
-        const { sinkBody, basins, faucets } = config;
+        const {
+            sinkModelId, 
+            legsTypeId,  
+            feetTypeId,  
+            pegboard, 
+            pegboardTypeId, 
+            pegboardSizePartNumber, 
+            basins, 
+            faucetTypeId, 
+            faucetQuantity,
+            sprayer, 
+            sprayerTypeIds, 
+            controlBoxId,
+            // sinkLength might be part of a sinkBody object within config or a top-level prop
+            // Adjust based on actual structure passed from UI after configuratorService integration
+            sinkLength // Assuming sinkLength is available in config for now for body logic
+        } = config; 
 
         // 2. Sink Body Assembly
+        // This logic might be superseded if sinkModelId itself is the complete body assembly.
+        // For now, retaining length-based selection if specific sinkLength is provided.
         let sinkBodyAssemblyId;
-        if (sinkBody.sinkLength >= 34 && sinkBody.sinkLength <= 60) sinkBodyAssemblyId = 'T2-BODY-48-60-HA';
-        else if (sinkBody.sinkLength >= 61 && sinkBody.sinkLength <= 72) sinkBodyAssemblyId = 'T2-BODY-61-72-HA';
-        else if (sinkBody.sinkLength >= 73 && sinkBody.sinkLength <= 120) sinkBodyAssemblyId = 'T2-BODY-73-120-HA';
-        if (sinkBodyAssemblyId) await addItemToBOMRecursive(sinkBodyAssemblyId, 1, 'SINK_BODY', bom, new Set());
+        if (sinkLength) { // Check if sinkLength is provided and valid
+            if (sinkLength >= 34 && sinkLength <= 60) sinkBodyAssemblyId = 'T2-BODY-48-60-HA';
+            else if (sinkLength >= 61 && sinkLength <= 72) sinkBodyAssemblyId = 'T2-BODY-61-72-HA';
+            else if (sinkLength >= 73 && sinkLength <= 120) sinkBodyAssemblyId = 'T2-BODY-73-120-HA';
+            
+            if (sinkBodyAssemblyId) {
+                await addItemToBOMRecursive(sinkBodyAssemblyId, 1, 'SINK_BODY', bom, new Set());
+            } else {
+                console.warn(`No sink body assembly found for length: ${sinkLength}`);
+            }
+        } else if (sinkModelId) {
+            // Fallback or primary logic: if sinkModelId is intended to be the main assembly including the body.
+            // This needs to align with how getSinkModels structures data.
+            // For now, we assume sinkModelId might be a more general identifier or a kit.
+            // If it IS the body assembly, this call would be appropriate:
+            // await addItemToBOMRecursive(sinkModelId, 1, 'SINK_MODEL_ASSEMBLY', bom, new Set());
+            console.log(`Sink length not provided, relying on other components or sinkModelId: ${sinkModelId} if it includes body.`);
+        }
 
         // 3. Legs Kit
-        const legsMappings = {
-            'DL27': 'T2-DL27-KIT', 'DL14': 'T2-DL14-KIT', 'LC1': 'T2-LC1-KIT',
-            'DL27-FH': 'T2-DL27-FH-KIT', 'DL14-FH': 'T2-DL14-FH-KIT',
-        };
-        if (legsMappings[sinkBody.legsType]) await addItemToBOMRecursive(legsMappings[sinkBody.legsType], 1, 'LEGS', bom, new Set());
+        if (legsTypeId) {
+            await addItemToBOMRecursive(legsTypeId, 1, 'LEGS', bom, new Set());
+        }
 
         // 4. Feet Type
-        const feetMappings = { 'CASTERS': 'T2-LEVELING-CASTOR-475', 'SEISMIC': 'T2-SEISMIC-FEET' };
-        if (feetMappings[sinkBody.feetType]) await addItemToBOMRecursive(feetMappings[sinkBody.feetType], 1, 'FEET', bom, new Set());
+        if (feetTypeId) {
+            await addItemToBOMRecursive(feetTypeId, 1, 'FEET', bom, new Set());
+        }
         
         // 5. Pegboard
-        if (sinkBody.pegboard) {
-            const pegboardTypeMappings = { 'PERFORATED': 'T2-ADW-PB-PERF-KIT', 'SOLID': 'T2-ADW-PB-SOLID-KIT' };
-            if (pegboardTypeMappings[sinkBody.pegboardType]) await addItemToBOMRecursive(pegboardTypeMappings[sinkBody.pegboardType], 1, 'PEGBOARD_TYPE', bom, new Set());
+        if (pegboard) {
+            if (pegboardTypeId) {
+                await addItemToBOMRecursive(pegboardTypeId, 1, 'PEGBOARD_TYPE_KIT', bom, new Set());
+            }
 
-            if (sinkBody.pegboardSizeOption === 'SAME_AS_SINK') {
-                let pegboardSizeId;
-                if (sinkBody.sinkLength >= 34 && sinkBody.sinkLength <= 47) pegboardSizeId = 'T2-ADW-PB-3436';
-                else if (sinkBody.sinkLength >= 48 && sinkBody.sinkLength <= 59) pegboardSizeId = 'T2-ADW-PB-4836';
-                else if (sinkBody.sinkLength >= 60 && sinkBody.sinkLength <= 71) pegboardSizeId = 'T2-ADW-PB-6036';
-                else if (sinkBody.sinkLength >= 72 && sinkBody.sinkLength <= 83) pegboardSizeId = 'T2-ADW-PB-7236';
-                else if (sinkBody.sinkLength >= 84 && sinkBody.sinkLength <= 95) pegboardSizeId = 'T2-ADW-PB-8436';
-                else if (sinkBody.sinkLength >= 96 && sinkBody.sinkLength <= 107) pegboardSizeId = 'T2-ADW-PB-9636';
-                else if (sinkBody.sinkLength >= 108 && sinkBody.sinkLength <= 120) pegboardSizeId = 'T2-ADW-PB-10836';
-                // else if (sinkBody.sinkLength >= 120 && sinkBody.sinkLength <= 130) pegboardSizeId = 'T2-ADW-PB-12036'; // From doc, current UI max 120
-                if (pegboardSizeId) await addItemToBOMRecursive(pegboardSizeId, 1, 'PEGBOARD_SIZE', bom, new Set());
+            if (pegboardSizePartNumber) {
+                // Check if it's a custom part number pattern
+                if (pegboardSizePartNumber.startsWith('720.215.002 T2-ADW-PB-')) {
+                    // Attempt to find it in the Part table
+                    let partDetails = await prisma.part.findUnique({ where: { partNumber: pegboardSizePartNumber } });
+                    if (!partDetails) {
+                        // If not in DB, add as a custom part placeholder
+                        partDetails = {
+                            partNumber: pegboardSizePartNumber,
+                            name: `Custom Pegboard Panel ${pegboardSizePartNumber.substring('720.215.002 T2-ADW-PB-'.length)}`,
+                            type: 'CUSTOM_PART_AUTOGEN' // Indicate it was auto-generated
+                        };
+                    }
+                    bom.push({
+                        id: partDetails.partNumber,
+                        name: partDetails.name,
+                        quantity: 1,
+                        category: 'PEGBOARD_PANEL',
+                        type: partDetails.type,
+                        components: [],
+                        isCustom: true
+                    });
+                } else {
+                    // Assume it's a standard assembly ID for the pegboard size/panel
+                    await addItemToBOMRecursive(pegboardSizePartNumber, 1, 'PEGBOARD_SIZE_ASSEMBLY', bom, new Set());
+                }
             }
             await addItemToBOMRecursive('T2-OHL-MDRD-KIT', 1, 'PEGBOARD_OHL', bom, new Set());
         }
 
         // 6. Basin Assemblies
-        const basinTypeMappings = { 'E_SINK': 'T2-BSN-ESK-KIT', 'E_SINK_DI': 'T2-BSN-ESK-DI-KIT', 'E_DRAIN': 'T2-BSN-EDR-KIT' };
-        const basinSizeMappings = {
-            '20X20X8': 'T2-ADW-BASIN20X20X8', '24X20X8': 'T2-ADW-BASIN24X20X8',
-            '24X20X10': 'T2-ADW-BASIN24X20X10', '30X20X8': 'T2-ADW-BASIN30X20X8',
-            '30X20X10': 'T2-ADW-BASIN30X20X10',
-        };
-        for (const basin of basins) {
-            if (basinTypeMappings[basin.basinType]) await addItemToBOMRecursive(basinTypeMappings[basin.basinType], 1, 'BASIN_TYPE', bom, new Set());
-            if (basinSizeMappings[basin.basinSize]) await addItemToBOMRecursive(basinSizeMappings[basin.basinSize], 1, 'BASIN_SIZE', bom, new Set());
-            for (const addon of basin.addons) {
-                if (addon === 'PTRAP_DRAIN') await addItemToBOMRecursive('T2-OA-MS-1026', 1, 'BASIN_ADDON_PTRAP', bom, new Set());
-                if (addon === 'BASIN_LIGHT') {
-                    const lightKitId = (basin.basinType === 'E_DRAIN') ? 'T2-OA-BASIN-LIGHT-EDR-KIT' : 'T2-OA-BASIN-LIGHT-ESK-KIT';
-                    await addItemToBOMRecursive(lightKitId, 1, 'BASIN_ADDON_LIGHT', bom, new Set());
+        if (basins && basins.length > 0) {
+            for (const basin of basins) {
+                if (basin.basinTypeId) {
+                    await addItemToBOMRecursive(basin.basinTypeId, 1, 'BASIN_TYPE_KIT', bom, new Set());
+                }
+                if (basin.basinSizePartNumber) {
+                    if (basin.basinSizePartNumber.startsWith('720.215.001 T2-ADW-BASIN-')) {
+                        let partDetails = await prisma.part.findUnique({ where: { partNumber: basin.basinSizePartNumber } });
+                        if (!partDetails) {
+                            partDetails = {
+                                partNumber: basin.basinSizePartNumber,
+                                name: `Custom Basin ${basin.basinSizePartNumber.substring('720.215.001 T2-ADW-BASIN-'.length)}`,
+                                type: 'CUSTOM_PART_AUTOGEN'
+                            };
+                        }
+                        bom.push({
+                            id: partDetails.partNumber,
+                            name: partDetails.name,
+                            quantity: 1,
+                            category: 'BASIN_PANEL',
+                            type: partDetails.type,
+                            components: [],
+                            isCustom: true
+                        });
+                    } else {
+                        await addItemToBOMRecursive(basin.basinSizePartNumber, 1, 'BASIN_SIZE_ASSEMBLY', bom, new Set());
+                    }
+                }
+
+                if (basin.addonIds && basin.addonIds.length > 0) {
+                    for (const addonId of basin.addonIds) {
+                        await addItemToBOMRecursive(addonId, 1, 'BASIN_ADDON', bom, new Set());
+                    }
                 }
             }
         }
         
         // 7. Control Box
-        const eSinkCount = basins.filter(b => b.basinType === 'E_SINK' || b.basinType === 'E_SINK_DI').length;
-        const eDrainCount = basins.filter(b => b.basinType === 'E_DRAIN').length;
-        let controlBoxId;
-        if (eSinkCount === 1 && eDrainCount === 0) controlBoxId = 'T2-CTRL-ESK1';
-        else if (eSinkCount === 0 && eDrainCount === 1) controlBoxId = 'T2-CTRL-EDR1';
-        else if (eSinkCount === 1 && eDrainCount === 1) controlBoxId = 'T2-CTRL-EDR1-ESK1';
-        else if (eSinkCount === 2 && eDrainCount === 0) controlBoxId = 'T2-CTRL-ESK2';
-        else if (eSinkCount === 0 && eDrainCount === 2) controlBoxId = 'T2-CTRL-EDR2';
-        else if (eSinkCount === 1 && eDrainCount === 2) controlBoxId = 'T2-CTRL-EDR2-ESK1'; // Doc: T2-CTRL-EDR2-ESK1, bom-gen: T2-CTRL-EDR2-ESK1
-        else if (eSinkCount === 2 && eDrainCount === 1) controlBoxId = 'T2-CTRL-EDR1-ESK2'; // Doc: T2-CTRL-EDR1-ESK2, bom-gen: T2-CTRL-EDR1-ESK2
-        else if (eSinkCount === 3 && eDrainCount === 0) controlBoxId = 'T2-CTRL-ESK3';
-        else if (eSinkCount === 0 && eDrainCount === 3) controlBoxId = 'T2-CTRL-EDR3';
-        if (controlBoxId) await addItemToBOMRecursive(controlBoxId, 1, 'CONTROL_BOX', bom, new Set());
+        if (controlBoxId) {
+            await addItemToBOMRecursive(controlBoxId, 1, 'CONTROL_BOX', bom, new Set());
+        }
 
         // 8. Faucets
-        const faucetTypeMappings = {
-            'STD_WRIST_BLADE': 'T2-OA-STD-FAUCET-WB-KIT',
-            'PRE_RINSE': 'T2-OA-PRE-RINSE-FAUCET-KIT',
-            'GOOSENECK_DI': 'T2-OA-DI-GOOSENECK-FAUCET-KIT',
-        };
-        if (faucetTypeMappings[faucets.faucetType]) {
-            await addItemToBOMRecursive(faucetTypeMappings[faucets.faucetType], faucets.faucetQuantity || 1, 'FAUCET', bom, new Set());
+        if (faucetTypeId) {
+            await addItemToBOMRecursive(faucetTypeId, faucetQuantity || 1, 'FAUCET_KIT', bom, new Set());
         }
 
         // 9. Sprayers
-        if (faucets.sprayer) {
-            const sprayerTypeMappings = {
-                'DI_WATER_TURRET': 'T2-OA-WATERGUN-TURRET-KIT', 'DI_WATER_ROSETTE': 'T2-OA-WATERGUN-ROSETTE-KIT',
-                'AIR_GUN_TURRET': 'T2-OA-AIRGUN-TURRET-KIT', 'AIR_GUN_ROSETTE': 'T2-OA-AIRGUN-ROSETTE-KIT',
-            };
-            const sprayerTypes = Array.isArray(faucets.sprayerType) ? faucets.sprayerType : (faucets.sprayerType ? [faucets.sprayerType] : []);
-            // The old bom-generator.js logic for sprayer quantity was:
-            // if array, qty 1 each. if single, faucets.sprayerQuantity.
-            // The UI has sprayerType as multi-select and sprayerQuantity as a separate single select (1 or 2).
-            // This implies total quantity, not per type.
-            // For now, let's assume each selected sprayer type implies one kit. The total quantity might be a constraint rather than a multiplier for each type.
-            // The `sink configuration and bom.txt` implies quantity is per selected type.
-            // The `sink-config.js` UI has sprayerType (multi-select) and sprayerQuantity (single select 1 or 2).
-            // Let's assume each selected type in sprayerType array gets a quantity of 1.
-            // The `faucets.sprayerQuantity` might be a validation rule or for a different context.
-            // Sticking to bom-generator.js logic: if array, 1 each. If single string, use faucet.sprayerQuantity.
-            // Current UI (sink-config.js) makes sprayerType an array if multi-selected.
-            
-            if (Array.isArray(faucets.sprayerType)) {
-                 for (const type of faucets.sprayerType) {
-                    if (sprayerTypeMappings[type]) {
-                        await addItemToBOMRecursive(sprayerTypeMappings[type], 1, 'SPRAYER', bom, new Set());
-                    }
-                }
-            } else if (faucets.sprayerType && sprayerTypeMappings[faucets.sprayerType]) {
-                 await addItemToBOMRecursive(sprayerTypeMappings[faucets.sprayerType], faucets.sprayerQuantity || 1, 'SPRAYER', bom, new Set());
+        if (sprayer && sprayerTypeIds && sprayerTypeIds.length > 0) {
+            for (const sprayerId of sprayerTypeIds) {
+                await addItemToBOMRecursive(sprayerId, 1, 'SPRAYER_KIT', bom, new Set());
             }
         }
     }
@@ -282,18 +310,28 @@ async function generateBOMForOrder(orderData) {
             continue;
         }
         const key = item.id + (item.category || ''); // Consolidate based on ID and category
-        if (itemMap.has(key)) {
+        if (!itemMap.has(key)) {
+            itemMap.set(key, { ...item });
+        } else {
+            // Consolidate quantities for the same item
             const existingItem = itemMap.get(key);
             existingItem.quantity += item.quantity;
-            // Naive component quantity update: if parent quantity increases, child quantities effectively do too.
-            // This simple consolidation might need more sophisticated component quantity handling if components are shared and not just multiplied.
-            // For now, assuming components are tied to their direct parent's summed quantity.
-        } else {
-            itemMap.set(key, { ...item }); // Shallow copy, components are references
+            // Merge components if needed, or handle as per business logic
+            // For now, we just consolidate the top-level items
         }
-    }    itemMap.forEach(value => consolidatedBOM.push(value));
-    
+    }
+
+    // Convert itemMap back to array
+    for (const consolidatedItem of itemMap.values()) {
+        consolidatedBOM.push(consolidatedItem);
+    }
+
     return consolidatedBOM;
 }
 
-module.exports = { generateBOMForOrder };
+module.exports = {
+    generateBOMForOrder,
+    addItemToBOMRecursive,
+    getAssemblyDetails,
+    getPartDetails,
+};

@@ -8,9 +8,13 @@ const HOST = serverConfig.host;
 const server = http.createServer(async (req, res) => {
   try {
     // Add CORS headers
-    res.setHeader('Access-Control-Allow-Origin', serverConfig.corsOrigins.join(', '));
+    const origin = req.headers.origin;
+    if (serverConfig.corsOrigins.includes(origin)) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+    }
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
     
     // Handle preflight requests
     if (req.method === 'OPTIONS') {
