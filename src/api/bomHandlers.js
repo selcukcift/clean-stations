@@ -1,7 +1,7 @@
-import { parseRequestBody } from '../lib/requestUtils.js';
-import { generateBOMForOrder } from '../services/bomService.js';
+const { parseRequestBody } = require('../lib/requestUtils');
+const { generateBOMForOrder } = require('../services/bomService');
 
-export async function handleGenerateBom(req, res) {
+async function handleGenerateBom(req, res) {
     try {
         const orderData = await parseRequestBody(req);
         if (!orderData || !orderData.customer || !orderData.configurations || !orderData.buildNumbers) {
@@ -15,8 +15,11 @@ export async function handleGenerateBom(req, res) {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify(bom));
     } catch (error) {
-        console.error('Error generating BOM:', error);
-        res.writeHead(500, { 'Content-Type': 'application/json' });
+        console.error('Error generating BOM:', error);        res.writeHead(500, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ message: 'Error generating BOM', error: error.message }));
     }
 }
+
+module.exports = {
+    handleGenerateBom,
+};

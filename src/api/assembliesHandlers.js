@@ -1,5 +1,5 @@
-const { PrismaClient, AssemblyType } = require('@prisma/client'); // Added AssemblyType
-const prisma = new PrismaClient();
+const { AssemblyType } = require('@prisma/client'); // Added AssemblyType
+const { prisma } = require('../config');
 const { sendJSONResponse } = require('../lib/requestUtils');
 const url = require('url'); // Added for parsing query parameters
 

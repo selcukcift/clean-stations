@@ -1,5 +1,5 @@
-const { PrismaClient, PartType, Status } = require('@prisma/client'); // Added PartType and Status
-const prisma = new PrismaClient();
+const { PartType, Status } = require('@prisma/client'); // Added PartType and Status
+const { prisma } = require('../config');
 const { sendJSONResponse } = require('../lib/requestUtils');
 const url = require('url'); // Added for parsing query parameters
 

@@ -9,8 +9,10 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    "allowJs": true, // Allow JavaScript files
+    "checkJs": false // Don't type-check JS files strictly
   },
-  "include": ["prisma/**/*.ts", "src/**/*.ts"],
-  "exclude": ["node_modules"]
+  "include": ["src/**/*.js", "src/**/*.ts", "*.js"],
+  "exclude": ["node_modules", "dist"]
 }

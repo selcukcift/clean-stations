@@ -1,5 +1,4 @@
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const { prisma } = require('../config');
 const { sendJSONResponse } = require('../lib/requestUtils');
 const url = require('url'); // Added for parsing query parameters
 

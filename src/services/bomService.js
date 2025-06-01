@@ -1,7 +1,4 @@
-\
-// filepath: d:\\Clean-stations\\src\\services\\bomService.js
-import { PrismaClient } from '@prisma/client';
-const prisma = new PrismaClient();
+const { prisma } = require('../config');
 
 async function getAssemblyDetails(assemblyId) {
     return prisma.assembly.findUnique({
@@ -294,10 +291,9 @@ async function generateBOMForOrder(orderData) {
         } else {
             itemMap.set(key, { ...item }); // Shallow copy, components are references
         }
-    }
-    itemMap.forEach(value => consolidatedBOM.push(value));
+    }    itemMap.forEach(value => consolidatedBOM.push(value));
     
     return consolidatedBOM;
 }
 
-export { generateBOMForOrder };
+module.exports = { generateBOMForOrder };

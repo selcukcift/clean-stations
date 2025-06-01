@@ -18,7 +18,8 @@
     "typescript": "^5.8.3"
   },
   "dependencies": {
-    "@prisma/client": "^6.8.2"
+    "@prisma/client": "^6.8.2",
+    "dotenv": "^16.5.0"
   },
   "prisma": {
     "seed": "node scripts/seed.js"

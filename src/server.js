@@ -1,10 +1,24 @@
 const http = require('http');
 const { routeRequest } = require('./lib/router');
+const { server: serverConfig, shutdown } = require('./config');
 
-const PORT = process.env.PORT || 3000;
+const PORT = serverConfig.port;
+const HOST = serverConfig.host;
 
 const server = http.createServer(async (req, res) => {
   try {
+    // Add CORS headers
+    res.setHeader('Access-Control-Allow-Origin', serverConfig.corsOrigins.join(', '));
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    
+    // Handle preflight requests
+    if (req.method === 'OPTIONS') {
+      res.writeHead(204);
+      res.end();
+      return;
+    }
+    
     await routeRequest(req, res);
   } catch (error) {
     console.error('Unhandled error in request handling:', error);
@@ -13,6 +27,13 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+// Graceful shutdown handling
+process.on('SIGTERM', shutdown);
+process.on('SIGINT', shutdown);
+
+server.listen(PORT, HOST, () => {
+  console.log(`Server running on http://${HOST}:${PORT}`);
+  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
 });
+
+module.exports = { server };

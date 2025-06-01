@@ -1,9 +1,7 @@
-const { PrismaClient } = require('@prisma/client');
+const { prisma } = require('../src/config');
 const fs = require('fs').promises;
 const path = require('path');
 const { execSync } = require('child_process'); // Added for running shell commands
-
-const prisma = new PrismaClient();
 
 async function resetDatabase() {
   console.log('Attempting to reset database...');
