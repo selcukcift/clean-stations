@@ -9,12 +9,11 @@ import { Loader2, User, Lock, AlertCircle } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { useToast } from "@/hooks/use-toast"
 import { useAuthStore } from "@/stores/authStore"
-import { api, plainNodeApiClient } from "@/lib/api"
+import { plainNodeApiClient } from "@/lib/api"
 
 const loginSchema = z.object({
   username: z.string().min(1, "Username is required").min(3, "Username must be at least 3 characters"),
@@ -36,28 +35,18 @@ export default function LoginPage() {
       password: "",
     },
   })
-  const onSubmit = async (values: LoginFormValues) => {    setIsSubmitting(true)
+  const onSubmit = async (values: LoginFormValues) => {
+    setIsSubmitting(true)
     setLoading(true)
 
     try {
-      // Use Next.js proxy instead of direct backend call
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          username: values.username,
-          password: values.password,
-        }),
+      // Use plainNodeApiClient directly to call the backend
+      const response = await plainNodeApiClient.post('/auth/login', {
+        username: values.username,
+        password: values.password,
       })
 
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
-      }
-
-      const responseData = await response.json()
-      const { token, user } = responseData
+      const { token, user } = response.data
 
       // Store auth data in Zustand store
       login(token, user)

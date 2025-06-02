@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
 import { z } from 'zod'
 import { getAuthUser, canAccessOrder } from '@/lib/nextAuthUtils'
+import notificationService from '@/src/services/notificationService'
 
 const prisma = new PrismaClient()
 
@@ -86,12 +87,12 @@ function validateStatusTransition(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { orderId: string } }
+  { params }: { params: Promise<{ orderId: string }> }
 ) {
+  const { orderId } = await params;
   try {
     // Authenticate user
     const user = await getAuthUser(request)
-    const { orderId } = params
 
     // Parse and validate request body
     const body = await request.json()
@@ -177,6 +178,49 @@ export async function PUT(
 
       return updatedOrder
     })
+
+    // Create notification for order creator (async, non-blocking)
+    notificationService.createNotification({
+      userId: order.createdById,
+      message: `Order ${order.poNumber} status updated to ${newStatus}`,
+      type: 'ORDER_STATUS_UPDATE',
+      orderId: order.id
+    }).catch(error => {
+      console.error('Failed to create notification:', error)
+    })
+
+    // Also notify relevant users based on the new status
+    const roleNotifications: Record<string, string[]> = {
+      'READY_FOR_PRE_QC': ['QC_PERSON'],
+      'READY_FOR_PRODUCTION': ['ASSEMBLER'],
+      'READY_FOR_FINAL_QC': ['QC_PERSON'],
+      'READY_FOR_SHIP': ['PRODUCTION_COORDINATOR']
+    }
+
+    const rolesToNotify = roleNotifications[newStatus]
+    if (rolesToNotify) {
+      // Find users with the relevant roles
+      prisma.user.findMany({
+        where: {
+          role: { in: rolesToNotify },
+          isActive: true
+        },
+        select: { id: true }
+      }).then(users => {
+        const userIds = users.map(u => u.id)
+        if (userIds.length > 0) {
+          notificationService.createBulkNotifications(userIds, {
+            message: `Order ${order.poNumber} is now ${newStatus.replace(/_/g, ' ').toLowerCase()}`,
+            type: 'ORDER_STATUS_UPDATE',
+            orderId: order.id
+          }).catch(error => {
+            console.error('Failed to create bulk notifications:', error)
+          })
+        }
+      }).catch(error => {
+        console.error('Failed to find users for notifications:', error)
+      })
+    }
 
     return NextResponse.json({
       success: true,

@@ -9,7 +9,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Separator } from "@/components/ui/separator"
 import { 
   Select, 
   SelectContent, 
@@ -22,19 +21,16 @@ import { Label } from "@/components/ui/label"
 import {
   AlertCircle,
   ArrowLeft,
-  Calendar,
-  Clock,
   FileText,
   Package,
-  Settings,
-  User,
   Download,
-  History,
-  CheckCircle,
-  XCircle,
   Loader2
 } from "lucide-react"
 import { format } from "date-fns"
+import { BOMDisplay } from "@/components/order/BOMDisplay"
+import { OrderSummaryCard } from "@/components/order/OrderSummaryCard"
+import { OrderTimeline } from "@/components/order/OrderTimeline"
+import { QCOrderIntegration } from "@/components/qc/QCOrderIntegration"
 
 // Status badge color mapping
 const statusColors: Record<string, string> = {
@@ -156,6 +152,53 @@ export default function OrderDetailsPage() {
     return transitions[user.role]?.[order.orderStatus] || []
   }
 
+  // Handle BOM export
+  const _handleBOMExport = async (format: 'csv' | 'pdf') => {
+    try {
+      const response = await nextJsApiClient.get(
+        `/orders/${params.orderId}/bom/export?format=${format}`,
+        { 
+          responseType: 'blob',
+          timeout: 30000 // 30 second timeout for large BOMs
+        }
+      )
+
+      // Create download link
+      const url = window.URL.createObjectURL(new Blob([response.data]))
+      const link = document.createElement('a')
+      link.href = url
+      
+      // Extract filename from response headers or generate one
+      const contentDisposition = response.headers['content-disposition']
+      let filename = `bom_${order.poNumber}_${new Date().toISOString().split('T')[0]}.${format}`
+      
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/)
+        if (filenameMatch && filenameMatch[1]) {
+          filename = filenameMatch[1].replace(/['"]/g, '')
+        }
+      }
+      
+      link.setAttribute('download', filename)
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(url)
+
+      toast({
+        title: "Export Successful",
+        description: `BOM exported as ${format.toUpperCase()} successfully`
+      })
+    } catch (error: any) {
+      console.error('BOM export error:', error)
+      toast({
+        title: "Export Failed",
+        description: error.response?.data?.error || `Failed to export BOM as ${format.toUpperCase()}`,
+        variant: "destructive"
+      })
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -204,12 +247,16 @@ export default function OrderDetailsPage() {
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="configuration">Configuration</TabsTrigger>
           <TabsTrigger value="bom">Bill of Materials</TabsTrigger>
+          <TabsTrigger value="qc">Quality Control</TabsTrigger>
           <TabsTrigger value="documents">Documents</TabsTrigger>
           <TabsTrigger value="history">History</TabsTrigger>
         </TabsList>
 
         {/* Overview Tab */}
         <TabsContent value="overview" className="space-y-4">
+          {/* Enhanced Order Summary Card */}
+          <OrderSummaryCard order={order} />
+          
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Customer Information */}
             <Card>
@@ -429,18 +476,11 @@ export default function OrderDetailsPage() {
         {/* BOM Tab */}
         <TabsContent value="bom" className="space-y-4">
           {order.generatedBoms && order.generatedBoms.length > 0 ? (
-            order.generatedBoms.map((bom: any) => (
-              <Card key={bom.id}>
-                <CardHeader>
-                  <CardTitle>BOM for Build Number: {bom.buildNumber}</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2">
-                    {renderBomItems(bom.bomItems, 0)}
-                  </div>
-                </CardContent>
-              </Card>
-            ))
+            <BOMDisplay
+              orderId={order.id}
+              poNumber={order.poNumber}
+              bomItems={order.generatedBoms[0]?.bomItems || []}
+            />
           ) : (
             <Card>
               <CardContent className="text-center py-8">
@@ -449,6 +489,11 @@ export default function OrderDetailsPage() {
               </CardContent>
             </Card>
           )}
+        </TabsContent>
+
+        {/* QC Tab */}
+        <TabsContent value="qc" className="space-y-4">
+          <QCOrderIntegration orderId={order.id} orderStatus={order.orderStatus} />
         </TabsContent>
 
         {/* Documents Tab */}
@@ -489,58 +534,10 @@ export default function OrderDetailsPage() {
 
         {/* History Tab */}
         <TabsContent value="history">
-          <Card>
-            <CardHeader>
-              <CardTitle>Order History</CardTitle>
-              <CardDescription>Complete timeline of order activities</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {order.historyLogs.map((log: any) => (
-                  <div key={log.id} className="flex items-start space-x-4 pb-4 border-b last:border-0">
-                    <div className="mt-1">
-                      {log.action === "ORDER_CREATED" ? (
-                        <CheckCircle className="w-5 h-5 text-green-500" />
-                      ) : log.action === "STATUS_UPDATED" ? (
-                        <Clock className="w-5 h-5 text-blue-500" />
-                      ) : (
-                        <History className="w-5 h-5 text-slate-400" />
-                      )}
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between">
-                        <p className="font-medium">
-                          {log.action === "ORDER_CREATED" ? "Order Created" :
-                           log.action === "STATUS_UPDATED" ? "Status Updated" :
-                           log.action}
-                        </p>
-                        <p className="text-sm text-slate-500">
-                          {format(new Date(log.timestamp), "MMM dd, yyyy HH:mm")}
-                        </p>
-                      </div>
-                      <p className="text-sm text-slate-600 mt-1">
-                        By {log.user.fullName}
-                      </p>
-                      {log.oldStatus && log.newStatus && (
-                        <div className="flex items-center space-x-2 mt-1">
-                          <Badge variant="outline" className="text-xs">
-                            {statusDisplayNames[log.oldStatus]}
-                          </Badge>
-                          <span className="text-xs">→</span>
-                          <Badge variant="outline" className="text-xs">
-                            {statusDisplayNames[log.newStatus]}
-                          </Badge>
-                        </div>
-                      )}
-                      {log.notes && (
-                        <p className="text-sm text-slate-700 mt-2">{log.notes}</p>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+          <OrderTimeline
+            events={order.historyLogs}
+            currentStatus={order.orderStatus}
+          />
         </TabsContent>
       </Tabs>
     </div>

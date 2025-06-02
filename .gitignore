@@ -96,3 +96,12 @@ coverage/
 *.tgz
 *.tar.gz
 
+# Temporary and debug files
+debug-*.js
+test-*.js
+test-*.py
+demo-*.js
+*.test.txt
+test_*.txt
+check-*.js
+

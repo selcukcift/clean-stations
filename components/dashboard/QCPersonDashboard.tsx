@@ -1,73 +1,83 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
-import { nextJsApiClient } from "@/lib/api"
-import { useToast } from "@/hooks/use-toast"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import {
-  ClipboardCheck,
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { 
   CheckCircle,
-  XCircle,
-  Eye,
-  Play,
-  MoreHorizontal,
-  Loader2,
-  Package,
+  Clock,
   AlertTriangle,
-  Clock
+  ClipboardCheck,
+  Package,
+  Calendar,
+  User,
+  TrendingUp,
+  ArrowRight
 } from "lucide-react"
 import { format } from "date-fns"
+import { nextJsApiClient } from "@/lib/api"
+import { useToast } from "@/hooks/use-toast"
+import { useRouter } from "next/navigation"
+
+interface QCTask {
+  id: string
+  orderId: string
+  poNumber: string
+  customerName: string
+  productFamily: string
+  status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED'
+  priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT'
+  dueDate: string
+  templateId: string
+  templateName: string
+  assignedAt: string
+  completedAt?: string
+  notes?: string
+}
+
+interface QCStats {
+  totalInspections: number
+  completedToday: number
+  pendingTasks: number
+  passRate: number
+  avgTimePerInspection: number
+}
 
 export function QCPersonDashboard() {
-  const router = useRouter()
   const { toast } = useToast()
-  const [orders, setOrders] = useState<any[]>([])
+  const router = useRouter()
+  const [qcTasks, setQcTasks] = useState<QCTask[]>([])
+  const [stats, setStats] = useState<QCStats | null>(null)
   const [loading, setLoading] = useState(true)
-  const [stats, setStats] = useState({
-    readyForPreQC: 0,
-    readyForFinalQC: 0,
-    qcInProgress: 0
-  })
+  const [activeTab, setActiveTab] = useState("pending")
 
   useEffect(() => {
-    fetchOrders()
+    fetchQCData()
   }, [])
 
-  const fetchOrders = async () => {
-    setLoading(true)
+  const fetchQCData = async () => {
     try {
-      const response = await nextJsApiClient.get("/orders?limit=50")
+      setLoading(true)
+      const [tasksResponse, statsResponse] = await Promise.all([
+        nextJsApiClient.get('/qc/tasks'),
+        nextJsApiClient.get('/qc/summary')
+      ])
+
+      if (tasksResponse.data.success) {
+        setQcTasks(tasksResponse.data.tasks)
+      }
       
-      if (response.data.success) {
-        // Filter for QC-relevant statuses
-        const qcOrders = response.data.data.filter((order: any) => 
-          ["READY_FOR_PRE_QC", "READY_FOR_FINAL_QC"].includes(order.orderStatus)
-        )
-        
-        setOrders(qcOrders)
-        calculateStats(qcOrders)
+      if (statsResponse.data.success) {
+        setStats(statsResponse.data.summary)
       }
     } catch (error: any) {
+      console.error('Error fetching QC data:', error)
       toast({
         title: "Error",
-        description: "Failed to fetch orders",
+        description: "Failed to load QC dashboard data",
         variant: "destructive"
       })
     } finally {
@@ -75,258 +85,321 @@ export function QCPersonDashboard() {
     }
   }
 
-  const calculateStats = (ordersList: any[]) => {
-    const stats = {
-      readyForPreQC: 0,
-      readyForFinalQC: 0,
-      qcInProgress: 0
-    }
-
-    ordersList.forEach(order => {
-      if (order.orderStatus === "READY_FOR_PRE_QC") {
-        stats.readyForPreQC++
-      } else if (order.orderStatus === "READY_FOR_FINAL_QC") {
-        stats.readyForFinalQC++
-      }
-    })
-
-    setStats(stats)
+  const handleStartQC = async (orderId: string) => {
+    router.push(`/orders/${orderId}/qc`)
   }
 
-  const navigateToOrder = (orderId: string) => {
-    router.push(`/orders/${orderId}`)
-  }
-
-  const handleQCAction = async (orderId: string, action: 'pass' | 'fail', currentStatus: string) => {
-    try {
-      let newStatus = ""
-      let notes = ""
-
-      if (currentStatus === "READY_FOR_PRE_QC") {
-        if (action === 'pass') {
-          newStatus = "READY_FOR_PRODUCTION"
-          notes = "Pre-QC passed, ready for production"
-        } else {
-          newStatus = "ORDER_CREATED" // Send back for rework
-          notes = "Pre-QC failed, requires rework"
-        }
-      } else if (currentStatus === "READY_FOR_FINAL_QC") {
-        if (action === 'pass') {
-          newStatus = "READY_FOR_SHIP"
-          notes = "Final QC passed, ready for shipping"
-        } else {
-          newStatus = "READY_FOR_PRODUCTION" // Send back for rework
-          notes = "Final QC failed, requires rework"
-        }
-      }
-
-      const response = await nextJsApiClient.put(`/orders/${orderId}/status`, {
-        newStatus,
-        notes
-      })
-      
-      if (response.data.success) {
-        toast({
-          title: "Success",
-          description: action === 'pass' ? "QC passed successfully" : "QC failed, sent for rework"
-        })
-        fetchOrders()
-      }
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.response?.data?.message || "Failed to update QC status",
-        variant: "destructive"
-      })
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'PENDING':
+        return 'bg-yellow-100 text-yellow-700'
+      case 'IN_PROGRESS':
+        return 'bg-blue-100 text-blue-700'
+      case 'COMPLETED':
+        return 'bg-green-100 text-green-700'
+      case 'FAILED':
+        return 'bg-red-100 text-red-700'
+      default:
+        return 'bg-gray-100 text-gray-700'
     }
   }
 
-  const getSinkModelFromOrder = (order: any) => {
-    return order.configurations?.[order.buildNumbers[0]]?.sinkModelId || "N/A"
+  const getPriorityColor = (priority: string) => {
+    switch (priority) {
+      case 'URGENT':
+        return 'bg-red-500 text-white'
+      case 'HIGH':
+        return 'bg-orange-500 text-white'
+      case 'MEDIUM':
+        return 'bg-yellow-500 text-white'
+      case 'LOW':
+        return 'bg-green-500 text-white'
+      default:
+        return 'bg-gray-500 text-white'
+    }
   }
 
-  const getAssemblyDate = (order: any) => {
-    // Find the most recent assembly-related log entry
-    const assemblyLog = order.historyLogs?.find((log: any) => 
-      log.newStatus === "TESTING_COMPLETE" || log.newStatus === "PACKAGING_COMPLETE"
+  const filterTasksByStatus = (status: string) => {
+    switch (status) {
+      case 'pending':
+        return qcTasks.filter(task => task.status === 'PENDING')
+      case 'in-progress':
+        return qcTasks.filter(task => task.status === 'IN_PROGRESS')
+      case 'completed':
+        return qcTasks.filter(task => ['COMPLETED', 'FAILED'].includes(task.status))
+      default:
+        return qcTasks
+    }
+  }
+
+  const isOverdue = (dueDate: string) => {
+    return new Date(dueDate) < new Date()
+  }
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          {[...Array(4)].map((_, i) => (
+            <Card key={i} className="animate-pulse">
+              <CardContent className="pt-6">
+                <div className="h-16 bg-slate-200 rounded"></div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
     )
-    return assemblyLog ? new Date(assemblyLog.timestamp) : null
   }
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h2 className="text-2xl font-bold">Quality Control Dashboard</h2>
-        <p className="text-slate-600">Perform quality checks and manage QC tasks</p>
-      </div>
+      {/* Stats Overview */}
+      {stats && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-slate-600">Pending Tasks</p>
+                  <p className="text-2xl font-bold">{stats.pendingTasks}</p>
+                </div>
+                <Clock className="w-8 h-8 text-yellow-500" />
+              </div>
+            </CardContent>
+          </Card>
 
-      {/* Statistics */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-slate-600">
-              Ready for Pre-QC
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between">
-              <span className="text-2xl font-bold">{stats.readyForPreQC}</span>
-              <AlertTriangle className="w-8 h-8 text-yellow-500 opacity-20" />
-            </div>
-            <p className="text-xs text-slate-500 mt-1">Parts arrived, awaiting pre-QC</p>
-          </CardContent>
-        </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-slate-600">Completed Today</p>
+                  <p className="text-2xl font-bold">{stats.completedToday}</p>
+                </div>
+                <CheckCircle className="w-8 h-8 text-green-500" />
+              </div>
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-slate-600">
-              Ready for Final QC
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between">
-              <span className="text-2xl font-bold">{stats.readyForFinalQC}</span>
-              <ClipboardCheck className="w-8 h-8 text-indigo-500 opacity-20" />
-            </div>
-            <p className="text-xs text-slate-500 mt-1">Assembly complete, final check</p>
-          </CardContent>
-        </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-slate-600">Pass Rate</p>
+                  <p className="text-2xl font-bold">{stats.passRate.toFixed(1)}%</p>
+                </div>
+                <TrendingUp className="w-8 h-8 text-blue-500" />
+              </div>
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-slate-600">
-              Total Pending QC
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between">
-              <span className="text-2xl font-bold">
-                {stats.readyForPreQC + stats.readyForFinalQC}
-              </span>
-              <Clock className="w-8 h-8 text-blue-500 opacity-20" />
-            </div>
-            <p className="text-xs text-slate-500 mt-1">All QC tasks pending</p>
-          </CardContent>
-        </Card>
-      </div>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-slate-600">Avg Time</p>
+                  <p className="text-2xl font-bold">{Math.round(stats.avgTimePerInspection)}m</p>
+                </div>
+                <ClipboardCheck className="w-8 h-8 text-purple-500" />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
-      {/* Orders Table */}
+      {/* QC Tasks */}
       <Card>
         <CardHeader>
-          <CardTitle>Orders Ready for QC</CardTitle>
-          <CardDescription>
-            Orders requiring quality control inspection
-          </CardDescription>
+          <CardTitle>QC Inspection Tasks</CardTitle>
+          <CardDescription>Manage your quality control inspections</CardDescription>
         </CardHeader>
         <CardContent>
-          {loading ? (
-            <div className="flex items-center justify-center h-64">
-              <Loader2 className="w-8 h-8 animate-spin" />
-            </div>
-          ) : orders.length === 0 ? (
-            <div className="text-center py-12">
-              <Package className="w-12 h-12 text-slate-400 mx-auto mb-4" />
-              <p className="text-slate-600">No orders ready for QC</p>
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>PO Number</TableHead>
-                  <TableHead>Sink Type/Model</TableHead>
-                  <TableHead>Assembly Date</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>QC Type</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {orders.map((order) => {
-                  const assemblyDate = getAssemblyDate(order)
-                  const qcType = order.orderStatus === "READY_FOR_PRE_QC" ? "Pre-QC" : "Final QC"
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="pending">
+                Pending ({filterTasksByStatus('pending').length})
+              </TabsTrigger>
+              <TabsTrigger value="in-progress">
+                In Progress ({filterTasksByStatus('in-progress').length})
+              </TabsTrigger>
+              <TabsTrigger value="completed">
+                Completed ({filterTasksByStatus('completed').length})
+              </TabsTrigger>
+            </TabsList>
 
-                  return (
-                    <TableRow key={order.id}>
-                      <TableCell className="font-medium">{order.poNumber}</TableCell>
-                      <TableCell>{getSinkModelFromOrder(order)}</TableCell>
-                      <TableCell>
-                        {assemblyDate 
-                          ? format(assemblyDate, "MMM dd, yyyy")
-                          : "N/A"
-                        }
-                      </TableCell>
-                      <TableCell>
-                        <Badge className={
-                          order.orderStatus === "READY_FOR_PRE_QC" 
-                            ? "bg-yellow-100 text-yellow-700"
-                            : "bg-indigo-100 text-indigo-700"
-                        }>
-                          {qcType} Pending
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{qcType}</Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm">
-                              <MoreHorizontal className="w-4 h-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => navigateToOrder(order.id)}>
-                              <Eye className="w-4 h-4 mr-2" />
-                              View Details
-                            </DropdownMenuItem>
-                            <DropdownMenuItem>
-                              <Play className="w-4 h-4 mr-2" />
-                              Start QC
-                            </DropdownMenuItem>
-                            <DropdownMenuItem>
-                              <ClipboardCheck className="w-4 h-4 mr-2" />
-                              View QC Checklist
-                            </DropdownMenuItem>
-                            <DropdownMenuItem 
-                              onClick={() => handleQCAction(order.id, 'pass', order.orderStatus)}
-                              className="text-green-600"
-                            >
-                              <CheckCircle className="w-4 h-4 mr-2" />
-                              Pass QC
-                            </DropdownMenuItem>
-                            <DropdownMenuItem 
-                              onClick={() => handleQCAction(order.id, 'fail', order.orderStatus)}
-                              className="text-red-600"
-                            >
-                              <XCircle className="w-4 h-4 mr-2" />
-                              Fail QC
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                  )
-                })}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+            <TabsContent value="pending" className="space-y-4 mt-4">
+              <ScrollArea className="h-[600px]">
+                <div className="space-y-3">
+                  {filterTasksByStatus('pending').map((task) => (
+                    <Card key={task.id} className={`border-l-4 ${
+                      isOverdue(task.dueDate) ? 'border-l-red-500' : 
+                      task.priority === 'URGENT' ? 'border-l-red-400' :
+                      task.priority === 'HIGH' ? 'border-l-orange-400' : 'border-l-blue-400'
+                    }`}>
+                      <CardContent className="pt-4">
+                        <div className="flex items-start justify-between">
+                          <div className="space-y-2 flex-1">
+                            <div className="flex items-center gap-2">
+                              <h4 className="font-medium">PO: {task.poNumber}</h4>
+                              <Badge className={getPriorityColor(task.priority)} variant="secondary">
+                                {task.priority}
+                              </Badge>
+                              {isOverdue(task.dueDate) && (
+                                <Badge variant="destructive" className="flex items-center gap-1">
+                                  <AlertTriangle className="w-3 h-3" />
+                                  Overdue
+                                </Badge>
+                              )}
+                            </div>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-slate-600">
+                              <div className="flex items-center gap-2">
+                                <User className="w-4 h-4" />
+                                {task.customerName}
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Package className="w-4 h-4" />
+                                {task.productFamily}
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Calendar className="w-4 h-4" />
+                                Due: {format(new Date(task.dueDate), "MMM dd, yyyy")}
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <ClipboardCheck className="w-4 h-4" />
+                                {task.templateName}
+                              </div>
+                            </div>
+                          </div>
+                          
+                          <Button 
+                            onClick={() => handleStartQC(task.orderId)}
+                            className="ml-4"
+                          >
+                            Start QC
+                            <ArrowRight className="w-4 h-4 ml-2" />
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                  
+                  {filterTasksByStatus('pending').length === 0 && (
+                    <div className="text-center py-8 text-slate-500">
+                      <ClipboardCheck className="w-12 h-12 mx-auto mb-4 text-slate-300" />
+                      <p>No pending QC tasks</p>
+                    </div>
+                  )}
+                </div>
+              </ScrollArea>
+            </TabsContent>
 
-      {/* QC Checklist Template Placeholder */}
-      <Card className="border-dashed">
-        <CardHeader>
-          <CardTitle className="text-lg">QC Checklist Templates</CardTitle>
-          <CardDescription>
-            Digital checklists for quality control procedures
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-slate-500">
-            Digital QC checklists will be implemented in a future update. 
-            Currently, please refer to the physical QC documentation.
-          </p>
+            <TabsContent value="in-progress" className="space-y-4 mt-4">
+              <ScrollArea className="h-[600px]">
+                <div className="space-y-3">
+                  {filterTasksByStatus('in-progress').map((task) => (
+                    <Card key={task.id} className="border-l-4 border-l-blue-500">
+                      <CardContent className="pt-4">
+                        <div className="flex items-start justify-between">
+                          <div className="space-y-2 flex-1">
+                            <div className="flex items-center gap-2">
+                              <h4 className="font-medium">PO: {task.poNumber}</h4>
+                              <Badge className={getStatusColor(task.status)}>
+                                {task.status.replace('_', ' ')}
+                              </Badge>
+                            </div>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-slate-600">
+                              <div className="flex items-center gap-2">
+                                <User className="w-4 h-4" />
+                                {task.customerName}
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Package className="w-4 h-4" />
+                                {task.productFamily}
+                              </div>
+                            </div>
+                          </div>
+                          
+                          <Button 
+                            onClick={() => handleStartQC(task.orderId)}
+                            variant="outline"
+                            className="ml-4"
+                          >
+                            Continue QC
+                            <ArrowRight className="w-4 h-4 ml-2" />
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                  
+                  {filterTasksByStatus('in-progress').length === 0 && (
+                    <div className="text-center py-8 text-slate-500">
+                      <Clock className="w-12 h-12 mx-auto mb-4 text-slate-300" />
+                      <p>No QC tasks in progress</p>
+                    </div>
+                  )}
+                </div>
+              </ScrollArea>
+            </TabsContent>
+
+            <TabsContent value="completed" className="space-y-4 mt-4">
+              <ScrollArea className="h-[600px]">
+                <div className="space-y-3">
+                  {filterTasksByStatus('completed').map((task) => (
+                    <Card key={task.id} className={`border-l-4 ${
+                      task.status === 'COMPLETED' ? 'border-l-green-500' : 'border-l-red-500'
+                    }`}>
+                      <CardContent className="pt-4">
+                        <div className="flex items-start justify-between">
+                          <div className="space-y-2 flex-1">
+                            <div className="flex items-center gap-2">
+                              <h4 className="font-medium">PO: {task.poNumber}</h4>
+                              <Badge className={getStatusColor(task.status)}>
+                                {task.status}
+                              </Badge>
+                            </div>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-slate-600">
+                              <div className="flex items-center gap-2">
+                                <User className="w-4 h-4" />
+                                {task.customerName}
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Calendar className="w-4 h-4" />
+                                Completed: {task.completedAt ? format(new Date(task.completedAt), "MMM dd, yyyy") : 'N/A'}
+                              </div>
+                            </div>
+                            
+                            {task.notes && (
+                              <p className="text-sm text-slate-600 mt-2">{task.notes}</p>
+                            )}
+                          </div>
+                          
+                          <Button 
+                            onClick={() => router.push(`/orders/${task.orderId}`)}
+                            variant="outline"
+                            size="sm"
+                            className="ml-4"
+                          >
+                            View Details
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                  
+                  {filterTasksByStatus('completed').length === 0 && (
+                    <div className="text-center py-8 text-slate-500">
+                      <CheckCircle className="w-12 h-12 mx-auto mb-4 text-slate-300" />
+                      <p>No completed QC tasks</p>
+                    </div>
+                  )}
+                </div>
+              </ScrollArea>
+            </TabsContent>
+          </Tabs>
         </CardContent>
       </Card>
     </div>

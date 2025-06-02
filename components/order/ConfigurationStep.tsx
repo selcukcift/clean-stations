@@ -11,65 +11,198 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ChevronLeft, ChevronRight, Settings, Wrench, Loader2, Package, AlertCircle } from "lucide-react"
+import { Separator } from "@/components/ui/separator"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { 
+  ChevronLeft, 
+  ChevronRight, 
+  Settings, 
+  Wrench, 
+  Loader2, 
+  Package, 
+  AlertCircle,
+  Info,
+  CheckCircle
+} from "lucide-react"
 import { nextJsApiClient } from '@/lib/api'
+import { useToast } from "@/hooks/use-toast"
+
+interface SinkModel {
+  id: string
+  name: string
+  basinCount: number
+}
+
+interface LegType {
+  assemblyId: string
+  name: string
+  type: string
+  legType: string
+  exists: boolean
+}
+
+interface FeetType {
+  assemblyId: string
+  name: string
+  type: string
+  exists: boolean
+}
+
+interface PegboardOptions {
+  types: Array<{id: string, name: string}>
+  standardSizes: Array<{assemblyId: string, name: string, width: number, length: number, covers: string}>
+  colorOptions: Array<{assemblyId: string, name: string, colors: string[]}>
+  recommendedPegboard: any
+  needsCustom: boolean
+  customPartNumberRule: string
+}
+
+interface BasinType {
+  id: string
+  name: string
+  kitAssemblyId: string
+  kitName: string
+}
+
+interface BasinSizeOptions {
+  standardSizes: Array<{assemblyId: string, name: string, dimensions: string}>
+  customPartNumberRule: string
+}
 
 export function ConfigurationStep() {
   const { sinkSelection, configurations, updateSinkConfiguration } = useOrderCreateStore()
+  const { toast } = useToast()
+  
+  // Navigation state
   const [currentBuildIndex, setCurrentBuildIndex] = useState(0)
-  const [sinkModels, setSinkModels] = useState<any[]>([])
-  const [legsTypes, setLegsTypes] = useState<any[]>([])
-  const [feetOptions, setFeetOptions] = useState<any[]>([])
-  const [pegboardTypes, setPegboardTypes] = useState<any[]>([])
-  const [basinTypes, setBasinTypes] = useState<any[]>([])
-  const [basinSizes, setBasinSizes] = useState<any[]>([])
+  const [currentTab, setCurrentTab] = useState('sink-body')
+  
+  // Configuration options state
+  const [sinkModels, setSinkModels] = useState<SinkModel[]>([])
+  const [legTypes, setLegTypes] = useState<LegType[]>([])
+  const [feetTypes, setFeetTypes] = useState<FeetType[]>([])
+  const [pegboardOptions, setPegboardOptions] = useState<PegboardOptions | null>(null)
+  const [basinTypes, setBasinTypes] = useState<BasinType[]>([])
+  const [basinSizeOptions, setBasinSizeOptions] = useState<BasinSizeOptions | null>(null)
   const [faucetTypes, setFaucetTypes] = useState<any[]>([])
   const [sprayerTypes, setSprayerTypes] = useState<any[]>([])
   const [controlBox, setControlBox] = useState<any>(null)
+  
+  // Loading states
+  const [loading, setLoading] = useState(true)
   const [controlBoxLoading, setControlBoxLoading] = useState(false)
+  const [pegboardLoading, setPegboardLoading] = useState(false)
 
-  useEffect(() => {
-    async function fetchConfigOptions() {
-      try {
-        const [sinkModelsRes, legsTypesRes, feetTypesRes, pegboardTypesRes, basinTypesRes, basinSizesRes, faucetTypesRes, sprayerTypesRes] = await Promise.all([
-          nextJsApiClient.get('/configurator?type=sink-models'),
-          nextJsApiClient.get('/configurator?type=legs-types'),
-          nextJsApiClient.get('/configurator?type=feet-types'),
-          nextJsApiClient.get('/configurator?type=pegboard-types'),
-          nextJsApiClient.get('/configurator?type=basin-types'),
-          nextJsApiClient.get('/configurator?type=basin-sizes'),
-          nextJsApiClient.get('/configurator?type=faucet-types'),
-          nextJsApiClient.get('/configurator?type=sprayer-types'),
-        ])
-        setSinkModels(sinkModelsRes.data.data || [])
-        setLegsTypes(legsTypesRes.data.data || [])
-        setFeetOptions(feetTypesRes.data.data || [])
-        setPegboardTypes(pegboardTypesRes.data.data || [])
-        setBasinTypes(basinTypesRes.data.data || [])
-        setBasinSizes(basinSizesRes.data.data?.standardSizes || [])
-        setFaucetTypes(faucetTypesRes.data.data || [])
-        setSprayerTypes(sprayerTypesRes.data.data || [])
-      } catch (err) {
-        // Handle error (show toast, etc.)
-      }
-    }
-    fetchConfigOptions()
-  }, [])
-
+  // Get current configuration
   const buildNumbers = sinkSelection.buildNumbers || []
   const currentBuildNumber = buildNumbers[currentBuildIndex]
   const currentConfig = configurations[currentBuildNumber] || {}
+
+  // Update configuration helper
   const updateConfig = (updates: any) => {
     updateSinkConfiguration(currentBuildNumber, updates)
-    
-    // If basin configuration changed, update control box
-    if (updates.basins) {
-      updateControlBox(updates.basins)
+  }
+
+  // Load initial configuration options
+  useEffect(() => {
+    loadConfigurationOptions()
+  }, [])
+
+  // Update control box when basin configuration changes
+  useEffect(() => {
+    if (currentConfig.basins && currentConfig.basins.length > 0) {
+      updateControlBox(currentConfig.basins)
+    }
+  }, [currentConfig.basins])
+
+  // Update pegboard options when sink dimensions change
+  useEffect(() => {
+    if (currentConfig.width && currentConfig.length) {
+      updatePegboardOptions(currentConfig.width, currentConfig.length)
+    }
+  }, [currentConfig.width, currentConfig.length])
+
+  // Auto-select faucet for E-Sink DI basins
+  useEffect(() => {
+    if (currentConfig.basins) {
+      autoSelectFaucets()
+    }
+  }, [currentConfig.basins])
+
+  // Auto-populate basins when sink model changes
+  useEffect(() => {
+    if (currentConfig.sinkModelId && (!currentConfig.basins || currentConfig.basins.length === 0)) {
+      const selectedModel = getSelectedModel()
+      if (selectedModel) {
+        const initialBasins = Array.from({ length: selectedModel.basinCount }, (_, index) => ({
+          id: `basin-${Date.now()}-${index}`,
+          basinType: '',
+          basinSize: '',
+          addons: []
+        }))
+        updateConfig({ basins: initialBasins })
+      }
+    }
+  }, [currentConfig.sinkModelId])
+
+  const loadConfigurationOptions = async () => {
+    try {
+      setLoading(true)
+      
+      // Load all basic configuration options
+      const [
+        sinkModelsRes,
+        legTypesRes,
+        feetTypesRes,
+        basinTypesRes,
+        basinSizesRes,
+        faucetTypesRes,
+        sprayerTypesRes
+      ] = await Promise.all([
+        nextJsApiClient.get('/configurator?queryType=sinkModels&family=MDRD'),
+        nextJsApiClient.get('/configurator?queryType=legTypes'),
+        nextJsApiClient.get('/configurator?queryType=feetTypes'),
+        nextJsApiClient.get('/configurator?queryType=basinTypes'),
+        nextJsApiClient.get('/configurator?queryType=basinSizes'),
+        nextJsApiClient.get('/configurator?queryType=faucetTypes'),
+        nextJsApiClient.get('/configurator?queryType=sprayerTypes')
+      ])
+
+      setSinkModels(sinkModelsRes.data.data || [])
+      setLegTypes(legTypesRes.data.data || [])
+      setFeetTypes(feetTypesRes.data.data || [])
+      setBasinTypes(basinTypesRes.data.data || [])
+      setBasinSizeOptions(basinSizesRes.data.data || null)
+      setFaucetTypes(faucetTypesRes.data.data?.options || [])
+      setSprayerTypes(sprayerTypesRes.data.data || [])
+
+    } catch (error) {
+      console.error('Error loading configuration options:', error)
+      toast({
+        title: "Error",
+        description: "Failed to load configuration options",
+        variant: "destructive"
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const updatePegboardOptions = async (width: number, length: number) => {
+    try {
+      setPegboardLoading(true)
+      const response = await nextJsApiClient.get(
+        `/configurator?queryType=pegboardOptions&width=${width}&length=${length}`
+      )
+      setPegboardOptions(response.data.data)
+    } catch (error) {
+      console.error('Error updating pegboard options:', error)
+    } finally {
+      setPegboardLoading(false)
     }
   }
 
   const updateControlBox = async (basins: any[]) => {
-    // Only fetch control box if we have basins with types
     if (!basins || basins.length === 0 || !basins.some(basin => basin?.basinType)) {
       setControlBox(null)
       updateConfig({ controlBoxId: null })
@@ -79,10 +212,12 @@ export function ConfigurationStep() {
     setControlBoxLoading(true)
     try {
       const validBasins = basins.filter(basin => basin?.basinType)
-      const response = await nextJsApiClient.get(`/configurator?type=control-box&basins=${JSON.stringify(validBasins)}`)
+      const response = await nextJsApiClient.post('/configurator/control-box', {
+        basinConfigurations: validBasins
+      })
+      
       if (response.data.success && response.data.data) {
         setControlBox(response.data.data)
-        // Update the configuration with the control box ID
         updateConfig({ controlBoxId: response.data.data.assemblyId })
       } else {
         setControlBox(null)
@@ -97,20 +232,54 @@ export function ConfigurationStep() {
     }
   }
 
-  // Effect to update control box when component loads or basin config changes
-  useEffect(() => {
-    if (currentConfig.basins && currentConfig.basins.length > 0) {
-      updateControlBox(currentConfig.basins)
-    }
-  }, [currentBuildNumber])
+  const autoSelectFaucets = async () => {
+    if (!currentConfig.basins) return
 
-  const getSelectedModel = () => {
-    return sinkModels.find(model => model.assemblyId === currentConfig.sinkModelId)
+    // Check if any basin is E-Sink DI
+    const hasDIBasin = currentConfig.basins.some(basin => basin.basinType === 'E_SINK_DI')
+    
+    if (hasDIBasin && faucetTypes.length > 0) {
+      // Auto-select Gooseneck faucet for DI basins
+      const gooseneckFaucet = faucetTypes.find(faucet => faucet.type === 'GOOSENECK_DI')
+      
+      // Check if using new faucets array system
+      if (gooseneckFaucet) {
+        if (!currentConfig.faucets || currentConfig.faucets.length === 0) {
+          // Create initial faucet configuration with Gooseneck
+          updateConfig({ 
+            faucets: [{
+              id: `faucet-${Date.now()}`,
+              faucetTypeId: gooseneckFaucet.assemblyId,
+              placement: 'CENTER'
+            }],
+            autoSelectedFaucet: true
+          })
+          
+          toast({
+            title: "Auto-Selection",
+            description: "Gooseneck faucet automatically selected for E-Sink DI basin",
+            duration: 3000
+          })
+        }
+        
+        // Also support legacy single faucet field
+        if (!currentConfig.faucetTypeId && !currentConfig.faucets?.length) {
+          updateConfig({ 
+            faucetTypeId: gooseneckFaucet.assemblyId,
+            autoSelectedFaucet: true
+          })
+        }
+      }
+    }
   }
 
-  const getMaxFaucets = () => {
+  const getSelectedModel = () => {
+    return sinkModels.find(model => model.id === currentConfig.sinkModelId)
+  }
+
+  const getMaxBasins = () => {
     const model = getSelectedModel()
-    return model ? Math.min(model.basins + 1, 3) : 2
+    return model ? model.basinCount : 1
   }
 
   const nextSink = () => {
@@ -125,9 +294,46 @@ export function ConfigurationStep() {
     }
   }
 
+  const addBasin = () => {
+    const currentBasins = currentConfig.basins || []
+    const maxBasins = getMaxBasins()
+    
+    if (currentBasins.length < maxBasins) {
+      const newBasin = {
+        id: `basin-${Date.now()}`,
+        basinType: '',
+        basinSize: '',
+        addons: []
+      }
+      updateConfig({ basins: [...currentBasins, newBasin] })
+    }
+  }
+
+  const removeBasin = (index: number) => {
+    const currentBasins = currentConfig.basins || []
+    const updatedBasins = currentBasins.filter((_, i) => i !== index)
+    updateConfig({ basins: updatedBasins })
+  }
+
+  const updateBasin = (index: number, updates: any) => {
+    const currentBasins = [...(currentConfig.basins || [])]
+    currentBasins[index] = { ...currentBasins[index], ...updates }
+    updateConfig({ basins: currentBasins })
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin" />
+        <span className="ml-2">Loading configuration options...</span>
+      </div>
+    )
+  }
+
   if (!currentBuildNumber) {
     return (
       <div className="text-center py-8">
+        <AlertCircle className="w-12 h-12 text-orange-500 mx-auto mb-4" />
         <p className="text-slate-600">No build numbers available. Please complete Step 2 first.</p>
       </div>
     )
@@ -188,13 +394,54 @@ export function ConfigurationStep() {
         </CardContent>
       </Card>
 
-      <Tabs defaultValue="sink-body" className="w-full">
+      <Tabs value={currentTab} onValueChange={setCurrentTab} className="w-full">
         <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="sink-body">Sink Body</TabsTrigger>
-          <TabsTrigger value="basins">Basins</TabsTrigger>
-          <TabsTrigger value="faucets">Faucets</TabsTrigger>
-          <TabsTrigger value="addons">Add-ons</TabsTrigger>
+          <TabsTrigger value="basins" disabled={!currentConfig.sinkModelId}>Basins</TabsTrigger>
+          <TabsTrigger value="faucets" disabled={!currentConfig.basins || currentConfig.basins.length === 0}>Faucets & Sprayers</TabsTrigger>
+          <TabsTrigger value="pegboard" disabled={!currentConfig.width || !currentConfig.length}>Pegboard</TabsTrigger>
         </TabsList>
+
+        {/* Tab Navigation Helper */}
+        <div className="mt-4 flex justify-between">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              const tabs = ['sink-body', 'basins', 'faucets', 'pegboard']
+              const currentIndex = tabs.indexOf(currentTab)
+              if (currentIndex > 0) setCurrentTab(tabs[currentIndex - 1])
+            }}
+            disabled={currentTab === 'sink-body'}
+          >
+            <ChevronLeft className="w-4 h-4 mr-2" />
+            Previous Tab
+          </Button>
+          
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              const tabs = ['sink-body', 'basins', 'faucets', 'pegboard']
+              const currentIndex = tabs.indexOf(currentTab)
+              if (currentIndex < tabs.length - 1) {
+                const nextTab = tabs[currentIndex + 1]
+                // Check if next tab is enabled
+                if (nextTab === 'basins' && currentConfig.sinkModelId) setCurrentTab(nextTab)
+                else if (nextTab === 'faucets' && currentConfig.basins && currentConfig.basins.length > 0) setCurrentTab(nextTab)
+                else if (nextTab === 'pegboard' && currentConfig.width && currentConfig.length) setCurrentTab(nextTab)
+              }
+            }}
+            disabled={currentTab === 'pegboard' || 
+              (currentTab === 'sink-body' && !currentConfig.sinkModelId) ||
+              (currentTab === 'basins' && (!currentConfig.basins || currentConfig.basins.length === 0)) ||
+              (currentTab === 'faucets' && (!currentConfig.width || !currentConfig.length))
+            }
+          >
+            Next Tab
+            <ChevronRight className="w-4 h-4 ml-2" />
+          </Button>
+        </div>
 
         {/* Sink Body Configuration */}
         <TabsContent value="sink-body" className="space-y-6">
@@ -208,18 +455,30 @@ export function ConfigurationStep() {
               <CardContent className="space-y-4">
                 <div className="space-y-2">
                   <Label>Model Selection *</Label>
-                  <Select value={currentConfig.sinkModelId} onValueChange={(value: any) => updateConfig({ sinkModelId: value })}>
+                  <Select 
+                    value={currentConfig.sinkModelId} 
+                    onValueChange={(value) => {
+                      updateConfig({ sinkModelId: value })
+                      // Auto-advance to next tab when model is selected
+                      setTimeout(() => setCurrentTab('basins'), 500)
+                    }}
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder="Select sink model" />
                     </SelectTrigger>
                     <SelectContent>
                       {sinkModels.map((model) => (
-                        <SelectItem key={model.assemblyId} value={model.assemblyId}>
+                        <SelectItem key={model.id} value={model.id}>
                           {model.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
+                  {getSelectedModel() && (
+                    <p className="text-sm text-slate-600">
+                      Maximum {getSelectedModel()?.basinCount} basin(s) for this model
+                    </p>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -238,8 +497,13 @@ export function ConfigurationStep() {
                       id="width"
                       type="number"
                       value={currentConfig.width || ''}
-                      onChange={(e) => updateConfig({ width: parseInt(e.target.value) })}
+                      onChange={(e) => {
+                        const width = parseInt(e.target.value) || 0
+                        updateConfig({ width })
+                      }}
                       placeholder="e.g., 48"
+                      min="24"
+                      max="120"
                     />
                   </div>
                   <div className="space-y-2">
@@ -248,477 +512,672 @@ export function ConfigurationStep() {
                       id="length"
                       type="number"
                       value={currentConfig.length || ''}
-                      onChange={(e) => updateConfig({ length: parseInt(e.target.value) })}
-                      placeholder="e.g., 54"
+                      onChange={(e) => {
+                        const length = parseInt(e.target.value) || 0
+                        updateConfig({ length })
+                        // Auto-enable pegboard tab when dimensions are set
+                        if (length > 0 && currentConfig.width && currentConfig.width > 0) {
+                          setTimeout(() => {
+                            if (currentTab === 'sink-body') setCurrentTab('basins')
+                          }, 500)
+                        }
+                      }}
+                      placeholder="e.g., 60"
+                      min="48"
+                      max="120"
                     />
                   </div>
                 </div>
+                {currentConfig.width && currentConfig.length && (
+                  <Alert>
+                    <Info className="h-4 w-4" />
+                    <AlertDescription>
+                      Sink dimensions: {currentConfig.width}" × {currentConfig.length}"
+                    </AlertDescription>
+                  </Alert>
+                )}
               </CardContent>
             </Card>
 
-            {/* Legs Configuration */}
+            {/* Legs */}
             <Card>
               <CardHeader>
-                <CardTitle>Legs Configuration</CardTitle>
-                <CardDescription>Choose leg type and specific kit</CardDescription>
+                <CardTitle>Legs</CardTitle>
+                <CardDescription>Choose leg type and configuration</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
                   <Label>Leg Type *</Label>
-                  <RadioGroup
-                    value={currentConfig.legsType}
-                    onValueChange={(value) => updateConfig({ legsType: value, legsKitId: '' })}
+                  <Select 
+                    value={currentConfig.legTypeId} 
+                    onValueChange={(value) => updateConfig({ legTypeId: value })}
                   >
-                    {legsTypes.map((type) => (
-                      <div key={type.value} className="flex items-center space-x-2">
-                        <RadioGroupItem value={type.value} />
-                        <Label>{type.label}</Label>
-                      </div>
-                    ))}
-                  </RadioGroup>
-                </div>
-
-                {/*
-                <div className="space-y-2">
-                  <Label>Kit Selection *</Label>
-                  <Select value={currentConfig.legsKitId} onValueChange={(value: any) => updateConfig({ legsKitId: value })}>
                     <SelectTrigger>
-                      <SelectValue placeholder="Select kit" />
+                      <SelectValue placeholder="Select leg type" />
                     </SelectTrigger>
                     <SelectContent>
-                      {(currentConfig.legsType === 'HEIGHT_ADJUSTABLE' ? heightAdjustableOptions : fixedHeightOptions).map((option: any) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label}
+                      {legTypes.filter(leg => leg.exists).map((leg) => (
+                        <SelectItem key={leg.assemblyId} value={leg.assemblyId}>
+                          {leg.type === 'HEIGHT_ADJUSTABLE' ? '📏 ' : '🔒 '}
+                          {leg.legType} - {leg.type.replace('_', ' ')}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
-                */}
               </CardContent>
             </Card>
 
-            {/* Feet Configuration */}
+            {/* Feet */}
             <Card>
               <CardHeader>
-                <CardTitle>Feet Configuration</CardTitle>
-                <CardDescription>Choose the feet type</CardDescription>
+                <CardTitle>Feet</CardTitle>
+                <CardDescription>Choose feet/caster configuration</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
                   <Label>Feet Type *</Label>
-                  <RadioGroup
-                    value={currentConfig.feetType}
-                    onValueChange={(value) => updateConfig({ feetType: value })}
+                  <Select 
+                    value={currentConfig.feetTypeId} 
+                    onValueChange={(value) => updateConfig({ feetTypeId: value })}
                   >
-                    {feetOptions.map((option) => (
-                      <div key={option.value} className="flex items-center space-x-2">
-                        <RadioGroupItem value={option.value} />
-                        <Label>{option.label}</Label>
-                      </div>
-                    ))}
-                  </RadioGroup>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select feet type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {feetTypes.filter(feet => feet.exists).map((feet) => (
+                        <SelectItem key={feet.assemblyId} value={feet.assemblyId}>
+                          {feet.type === 'LOCK_LEVELING_CASTERS' ? '🛞 ' : '⚓ '}
+                          {feet.type.replace(/_/g, ' ')}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </CardContent>
             </Card>
           </div>
 
-          {/* Pegboard Configuration */}
+          {/* Workflow Direction */}
           <Card>
             <CardHeader>
-              <CardTitle>Pegboard Configuration</CardTitle>
-              <CardDescription>Optional pegboard setup</CardDescription>
+              <CardTitle>Workflow Direction</CardTitle>
+              <CardDescription>Choose the workflow direction for this sink</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="pegboard"
-                  checked={currentConfig.pegboard || false}
-                  onCheckedChange={(checked: any) => updateConfig({ pegboard: !!checked })}
-                />
-                <Label htmlFor="pegboard">Include Pegboard</Label>
-              </div>
-
-              {currentConfig.pegboard && (
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 p-4 border rounded-lg">
-                  <div className="space-y-2">
-                    <Label>Pegboard Type *</Label>
-                    <Select value={currentConfig.pegboardType} onValueChange={(value: any) => updateConfig({ pegboardType: value })}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select type" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {pegboardTypes.map((type) => (
-                          <SelectItem key={type.value} value={type.value}>
-                            {type.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {/* {currentConfig.pegboardType === 'COLORSAFE' && (
-                    <div className="space-y-2">
-                      <Label>Color *</Label>
-                      <Select value={currentConfig.pegboardColor} onValueChange={(value: any) => updateConfig({ pegboardColor: value })}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select color" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {pegboardColors.map((color: any) => (
-                            <SelectItem key={color} value={color}>
-                              {color}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )} */}
-
-                  <div className="space-y-2">
-                    <Label>Size Option *</Label>
-                    <RadioGroup
-                      value={currentConfig.pegboardSizeType}
-                      onValueChange={(value) => updateConfig({ pegboardSizeType: value })}
-                    >
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="SAME_AS_SINK" />
-                        <Label>Same as Sink Length</Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="CUSTOM" />
-                        <Label>Custom Size</Label>
-                      </div>
-                    </RadioGroup>
-                  </div>
-
-                  {currentConfig.pegboardSizeType === 'CUSTOM' && (
-                    <div className="grid grid-cols-2 gap-4 col-span-full">
-                      <div className="space-y-2">
-                        <Label>Width (inches)</Label>
-                        <Input
-                          type="number"
-                          value={currentConfig.pegboardWidth || ''}
-                          onChange={(e) => updateConfig({ pegboardWidth: parseInt(e.target.value) })}
-                          placeholder="Width"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Length (inches)</Label>
-                        <Input
-                          type="number"
-                          value={currentConfig.pegboardLength || ''}
-                          onChange={(e) => updateConfig({ pegboardLength: parseInt(e.target.value) })}
-                          placeholder="Length"
-                        />
-                      </div>
-                    </div>
-                  )}
+            <CardContent>
+              <RadioGroup 
+                value={currentConfig.workflowDirection} 
+                onValueChange={(value) => updateConfig({ workflowDirection: value })}
+              >
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="LEFT_TO_RIGHT" id="ltr" />
+                  <Label htmlFor="ltr">Left to Right</Label>
                 </div>
-              )}
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="RIGHT_TO_LEFT" id="rtl" />
+                  <Label htmlFor="rtl">Right to Left</Label>
+                </div>
+              </RadioGroup>
             </CardContent>
           </Card>
         </TabsContent>
 
         {/* Basin Configuration */}
         <TabsContent value="basins" className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-semibold">Basin Configuration</h3>
+              <p className="text-sm text-slate-600">Configure each basin for this sink</p>
+            </div>
+            <Button 
+              onClick={addBasin}
+              disabled={!getSelectedModel() || (currentConfig.basins?.length || 0) >= getMaxBasins()}
+              size="sm"
+            >
+              Add Basin
+            </Button>
+          </div>
+
+          {!getSelectedModel() && (
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                Please select a sink model first to configure basins.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {currentConfig.basins?.map((basin: any, index: number) => (
+            <Card key={basin.id || index}>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle>Basin {index + 1}</CardTitle>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => removeBasin(index)}
+                  >
+                    Remove
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Basin Type */}
+                  <div className="space-y-2">
+                    <Label>Basin Type *</Label>
+                    <Select 
+                      value={basin.basinType} 
+                      onValueChange={(value) => updateBasin(index, { basinType: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select basin type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {basinTypes.map((type) => (
+                          <SelectItem key={type.id} value={type.id}>
+                            {type.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Basin Size */}
+                  <div className="space-y-2">
+                    <Label>Basin Size *</Label>
+                    <Select 
+                      value={basin.basinSize} 
+                      onValueChange={(value) => updateBasin(index, { basinSize: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select basin size" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {basinSizeOptions?.standardSizes.map((size) => (
+                          <SelectItem key={size.assemblyId} value={size.assemblyId}>
+                            {size.dimensions}
+                          </SelectItem>
+                        ))}
+                        <SelectItem value="CUSTOM">Custom Size</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                {/* Custom Basin Size */}
+                {basin.basinSize === 'CUSTOM' && (
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <Label>Width (inches)</Label>
+                      <Input
+                        type="number"
+                        placeholder="20"
+                        value={basin.customWidth || ''}
+                        onChange={(e) => updateBasin(index, { customWidth: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Length (inches)</Label>
+                      <Input
+                        type="number"
+                        placeholder="20"
+                        value={basin.customLength || ''}
+                        onChange={(e) => updateBasin(index, { customLength: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Depth (inches)</Label>
+                      <Input
+                        type="number"
+                        placeholder="8"
+                        value={basin.customDepth || ''}
+                        onChange={(e) => updateBasin(index, { customDepth: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Basin Add-ons */}
+                <div className="space-y-2">
+                  <Label>Add-ons (Optional)</Label>
+                  <div className="space-y-2">
+                    <div className="flex items-center space-x-2">
+                      <Checkbox 
+                        id={`ptrap-${index}`}
+                        checked={basin.addons?.includes('P_TRAP') || false}
+                        onCheckedChange={(checked) => {
+                          const currentAddons = basin.addons || []
+                          const updatedAddons = checked 
+                            ? [...currentAddons, 'P_TRAP']
+                            : currentAddons.filter((addon: string) => addon !== 'P_TRAP')
+                          updateBasin(index, { addons: updatedAddons })
+                        }}
+                      />
+                      <Label htmlFor={`ptrap-${index}`}>P-TRAP Disinfection Drain Unit</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox 
+                        id={`light-${index}`}
+                        checked={basin.addons?.includes('BASIN_LIGHT') || false}
+                        onCheckedChange={(checked) => {
+                          const currentAddons = basin.addons || []
+                          const updatedAddons = checked 
+                            ? [...currentAddons, 'BASIN_LIGHT']
+                            : currentAddons.filter((addon: string) => addon !== 'BASIN_LIGHT')
+                          updateBasin(index, { addons: updatedAddons })
+                        }}
+                      />
+                      <Label htmlFor={`light-${index}`}>Basin Light Kit</Label>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+
+          {/* Control Box Display */}
+          {currentConfig.basins && currentConfig.basins.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  Control Box
+                  {controlBoxLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+                </CardTitle>
+                <CardDescription>
+                  Automatically determined based on basin configuration
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {controlBox ? (
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="w-5 h-5 text-green-500" />
+                    <div>
+                      <p className="font-medium">{controlBox.name}</p>
+                      <p className="text-sm text-slate-600">{controlBox.mappingRule}</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 text-slate-600">
+                    <Package className="w-5 h-5" />
+                    <span>Control box will be determined based on basin types</span>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
+        {/* Faucets & Sprayers */}
+        <TabsContent value="faucets" className="space-y-6">
+          {/* Faucet Configuration - Multiple Selection */}
           <Card>
             <CardHeader>
-              <CardTitle>Basin Configuration</CardTitle>
-              <CardDescription>
-                Configure basin types and sizes for {getSelectedModel()?.name || 'selected model'}
-              </CardDescription>
+              <CardTitle>Faucet Configuration</CardTitle>
+              <CardDescription>Configure faucets for your sink (Maximum: {getMaxBasins()} faucets)</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {!currentConfig.sinkModelId ? (
-                <p className="text-slate-600">Please select a sink model first.</p>
+              <div className="flex items-center justify-between mb-4">
+                <Label className="text-base">Configured Faucets</Label>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const currentFaucets = currentConfig.faucets || []
+                    if (currentFaucets.length < getMaxBasins()) {
+                      const newFaucet = {
+                        id: `faucet-${Date.now()}`,
+                        faucetTypeId: '',
+                        placement: 'CENTER'
+                      }
+                      updateConfig({ faucets: [...currentFaucets, newFaucet] })
+                    }
+                  }}
+                  disabled={!currentConfig.faucets || currentConfig.faucets.length >= getMaxBasins()}
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Faucet
+                </Button>
+              </div>
+
+              {(!currentConfig.faucets || currentConfig.faucets.length === 0) ? (
+                <Alert>
+                  <Info className="h-4 w-4" />
+                  <AlertDescription>
+                    No faucets configured. Click "Add Faucet" to add a faucet configuration.
+                  </AlertDescription>
+                </Alert>
               ) : (
-                <div className="space-y-6">
-                  {Array.from({ length: getSelectedModel()?.basins || 1 }, (_, index) => (
-                    <div key={index} className="p-4 border rounded-lg space-y-4">
-                      <h4 className="font-medium">Basin {index + 1}</h4>
-                      
-                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label>Basin Type *</Label>
-                          <Select 
-                            value={currentConfig.basins?.[index]?.basinType} 
-                            onValueChange={(value) => {
-                              const basins = [...(currentConfig.basins || [])]
-                              basins[index] = { ...basins[index], basinType: value }
-                              updateConfig({ basins })
+                <div className="space-y-4">
+                  {currentConfig.faucets.map((faucet: any, index: number) => (
+                    <Card key={faucet.id || index} className="border-slate-200">
+                      <CardHeader className="pb-3">
+                        <div className="flex items-center justify-between">
+                          <h4 className="font-medium">Faucet {index + 1}</h4>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              const updatedFaucets = currentConfig.faucets.filter((_: any, i: number) => i !== index)
+                              updateConfig({ faucets: updatedFaucets })
                             }}
                           >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select basin type" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {basinTypes.map((type) => (
-                                <SelectItem key={type.value} value={type.value}>
-                                  {type.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                            <Minus className="w-4 h-4" />
+                          </Button>
                         </div>
-
-                        <div className="space-y-2">
-                          <Label>Basin Size *</Label>
-                          <Select 
-                            value={currentConfig.basins?.[index]?.basinSize} 
-                            onValueChange={(value) => {
-                              const basins = [...(currentConfig.basins || [])]
-                              basins[index] = { ...basins[index], basinSize: value }
-                              updateConfig({ basins })
-                            }}
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select basin size" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {basinSizes.map((size) => (
-                                <SelectItem key={size.value} value={size.value}>
-                                  {size.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        {currentConfig.basins?.[index]?.basinSize === 'CUSTOM' && (
-                          <div className="col-span-2">
-                            <Label>Custom Dimensions (W × L × D inches)</Label>
-                            <div className="grid grid-cols-3 gap-2 mt-2">
-                              <Input placeholder="Width" type="number" />
-                              <Input placeholder="Length" type="number" />
-                              <Input placeholder="Depth" type="number" />
-                            </div>
+                      </CardHeader>
+                      <CardContent className="space-y-3">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label>Faucet Type</Label>
+                            <Select 
+                              value={faucet.faucetTypeId} 
+                              onValueChange={(value) => {
+                                const updatedFaucets = [...currentConfig.faucets]
+                                updatedFaucets[index] = { ...faucet, faucetTypeId: value }
+                                updateConfig({ faucets: updatedFaucets })
+                              }}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select faucet type" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {faucetTypes.map((faucetType) => (
+                                  <SelectItem key={faucetType.assemblyId} value={faucetType.assemblyId}>
+                                    {faucetType.displayName}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
                           </div>
+                          
+                          <div className="space-y-2">
+                            <Label>Placement</Label>
+                            <Select 
+                              value={faucet.placement} 
+                              onValueChange={(value) => {
+                                const updatedFaucets = [...currentConfig.faucets]
+                                updatedFaucets[index] = { ...faucet, placement: value }
+                                updateConfig({ faucets: updatedFaucets })
+                              }}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select placement" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="CENTER">Center</SelectItem>
+                                {getMaxBasins() > 1 && (
+                                  <SelectItem value="BETWEEN_BASINS">Between Basins</SelectItem>
+                                )}
+                                <SelectItem value="LEFT">Left Side</SelectItem>
+                                <SelectItem value="RIGHT">Right Side</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                        
+                        {/* Auto-selection notice */}
+                        {currentConfig.basins?.some((b: any) => b.basinType === 'E_SINK_DI') && 
+                         faucet.faucetTypeId === '706.60' && (
+                          <Alert className="mt-2">
+                            <Info className="h-4 w-4" />
+                            <AlertDescription className="text-sm">
+                              Gooseneck faucet is recommended for E-Sink DI basins
+                            </AlertDescription>
+                          </Alert>
                         )}
-                      </div>
-
-                      {/* Basin Add-ons */}
-                      <div className="space-y-2">
-                        <Label>Basin Add-ons</Label>
-                        <div className="space-y-2">
-                          <div className="flex items-center space-x-2">
-                            <Checkbox id={`ptrap-${index}`} />
-                            <Label htmlFor={`ptrap-${index}`}>P-Trap Disinfection Drain Unit</Label>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <Checkbox id={`light-${index}`} />
-                            <Label htmlFor={`light-${index}`}>Basin Light</Label>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
+                      </CardContent>
+                    </Card>
                   ))}
                 </div>
+              )}
+
+              {/* Legacy single faucet warning */}
+              {currentConfig.faucetTypeId && !currentConfig.faucets?.length && (
+                <Alert className="mt-4">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    Legacy faucet configuration detected. Click "Add Faucet" to migrate to the new system.
+                  </AlertDescription>
+                </Alert>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Sprayer Configuration - Multiple Selection */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Sprayer Configuration</CardTitle>
+              <CardDescription>Configure sprayers for your sink (Maximum: 2 sprayers)</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between mb-4">
+                <Label className="text-base">Configured Sprayers</Label>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const currentSprayers = currentConfig.sprayers || []
+                    if (currentSprayers.length < 2) {
+                      const newSprayer = {
+                        id: `sprayer-${Date.now()}`,
+                        sprayerTypeId: '',
+                        location: ''
+                      }
+                      updateConfig({ sprayers: [...currentSprayers, newSprayer] })
+                    }
+                  }}
+                  disabled={currentConfig.sprayers && currentConfig.sprayers.length >= 2}
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Sprayer
+                </Button>
+              </div>
+
+              {(!currentConfig.sprayers || currentConfig.sprayers.length === 0) ? (
+                <Alert>
+                  <Info className="h-4 w-4" />
+                  <AlertDescription>
+                    No sprayers configured. Sprayers are optional. Click "Add Sprayer" if you want to add sprayers.
+                  </AlertDescription>
+                </Alert>
+              ) : (
+                <div className="space-y-4">
+                  {currentConfig.sprayers.map((sprayer: any, index: number) => (
+                    <Card key={sprayer.id || index} className="border-slate-200">
+                      <CardHeader className="pb-3">
+                        <div className="flex items-center justify-between">
+                          <h4 className="font-medium">Sprayer {index + 1}</h4>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              const updatedSprayers = currentConfig.sprayers.filter((_: any, i: number) => i !== index)
+                              updateConfig({ sprayers: updatedSprayers })
+                            }}
+                          >
+                            <Minus className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="space-y-3">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label>Sprayer Type</Label>
+                            <Select 
+                              value={sprayer.sprayerTypeId} 
+                              onValueChange={(value) => {
+                                const updatedSprayers = [...currentConfig.sprayers]
+                                updatedSprayers[index] = { ...sprayer, sprayerTypeId: value }
+                                updateConfig({ sprayers: updatedSprayers })
+                              }}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select sprayer type" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {sprayerTypes.map((sprayerType) => (
+                                  <SelectItem key={sprayerType.assemblyId} value={sprayerType.assemblyId}>
+                                    {sprayerType.displayName}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <Label>Location</Label>
+                            <Select 
+                              value={sprayer.location} 
+                              onValueChange={(value) => {
+                                const updatedSprayers = [...currentConfig.sprayers]
+                                updatedSprayers[index] = { ...sprayer, location: value }
+                                updateConfig({ sprayers: updatedSprayers })
+                              }}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select location" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="LEFT_SIDE">Left Side</SelectItem>
+                                <SelectItem value="RIGHT_SIDE">Right Side</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+
+              {/* Legacy sprayer warning */}
+              {currentConfig.hasSprayer && !currentConfig.sprayers?.length && (
+                <Alert className="mt-4">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    Legacy sprayer configuration detected. Click "Add Sprayer" to migrate to the new system.
+                  </AlertDescription>
+                </Alert>
               )}
             </CardContent>
           </Card>
         </TabsContent>
 
-        {/* Faucet Configuration */}
-        <TabsContent value="faucets" className="space-y-6">
+        {/* Pegboard Configuration */}
+        <TabsContent value="pegboard" className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Faucet Configuration</CardTitle>
-              <CardDescription>Configure faucet types, quantities, and sprayers</CardDescription>
+              <CardTitle>Pegboard Configuration</CardTitle>
+              <CardDescription>Optional pegboard add-on</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <Label>Faucet Type *</Label>
-                  <Select value={currentConfig.faucetType} onValueChange={(value) => updateConfig({ faucetType: value })}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select faucet type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {faucetTypes.map((type) => (
-                        <SelectItem key={type.value} value={type.value}>
-                          {type.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Faucet Quantity *</Label>
-                  <Select 
-                    value={currentConfig.faucetQuantity?.toString()} 
-                    onValueChange={(value) => updateConfig({ faucetQuantity: parseInt(value) })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select quantity" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Array.from({ length: getMaxFaucets() }, (_, i) => i + 1).map((num) => (
-                        <SelectItem key={num} value={num.toString()}>
-                          {num}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>              {/* Sprayer Configuration */}
-              <div className="space-y-4">
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="sprayer"
-                    checked={currentConfig.sprayer?.hasSprayerSystem || false}
-                    onCheckedChange={(checked: any) => updateConfig({ 
-                      sprayer: { 
-                        hasSprayerSystem: !!checked,
-                        sprayerTypeIds: checked ? currentConfig.sprayer?.sprayerTypeIds || [] : []
-                      }
-                    })}
-                  />
-                  <Label htmlFor="sprayer">Include Sprayer</Label>
-                </div>
-
-                {currentConfig.sprayer?.hasSprayerSystem && (
-                  <div className="p-4 border rounded-lg space-y-4">
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                      <div className="space-y-2">
-                        <Label>Sprayer Type *</Label>
-                        <Select 
-                          value={currentConfig.sprayerType} 
-                          onValueChange={(value) => {
-                            updateConfig({ 
-                              sprayerType: value,
-                              sprayer: {
-                                ...currentConfig.sprayer,
-                                sprayerTypeIds: [value]
-                              }
-                            })
-                          }}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select sprayer type" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {sprayerTypes.map((type) => (
-                              <SelectItem key={type.value} value={type.value}>
-                                {type.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label>Sprayer Quantity *</Label>
-                        <Select 
-                          value={currentConfig.sprayerQuantity?.toString()} 
-                          onValueChange={(value) => updateConfig({ sprayerQuantity: parseInt(value) })}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select quantity" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="1">1</SelectItem>
-                            <SelectItem value="2">2</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label>Sprayer Location *</Label>
-                        <Select value={currentConfig.sprayerLocation} onValueChange={(value) => updateConfig({ sprayerLocation: value })}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select location" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="LEFT">Left Side</SelectItem>
-                            <SelectItem value="RIGHT">Right Side</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>        {/* Add-ons Tab */}
-        <TabsContent value="addons" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Control Box & Add-ons</CardTitle>
-              <CardDescription>Automatically selected based on basin configuration</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {/* Control Box Section */}
-              <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                <h4 className="font-medium text-blue-900 mb-3">Required Control Box</h4>
-                {controlBoxLoading ? (
-                  <div className="flex items-center space-x-2 text-blue-700">
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Determining control box...</span>
-                  </div>
-                ) : controlBox ? (
-                  <div className="space-y-2">
-                    <div className="flex items-center space-x-2">
-                      <Package className="w-4 h-4 text-blue-600" />
-                      <span className="font-medium">{controlBox.name}</span>
-                    </div>
-                    <p className="text-sm text-blue-700">
-                      Part Number: {controlBox.assemblyId}
-                    </p>
-                    <p className="text-xs text-blue-600">
-                      This control box is automatically selected based on your basin configuration
-                    </p>
-                  </div>
-                ) : currentConfig.basins && currentConfig.basins.length > 0 ? (
-                  <div className="text-amber-700">
-                    <div className="flex items-center space-x-2">
-                      <AlertCircle className="w-4 h-4" />
-                      <span>No control box required for current basin configuration</span>
-                    </div>
-                  </div>
-                ) : (
-                  <p className="text-slate-600">
-                    Control box will be determined after basin configuration is complete
-                  </p>
-                )}
+            <CardContent className="space-y-4">
+              <div className="flex items-center space-x-2">
+                <Checkbox 
+                  id="has-pegboard"
+                  checked={currentConfig.hasPegboard || false}
+                  onCheckedChange={(checked) => updateConfig({ hasPegboard: checked })}
+                />
+                <Label htmlFor="has-pegboard">Include Pegboard</Label>
               </div>
 
-              {/* Other Add-ons */}
-              <div className="space-y-4">
-                <h4 className="font-medium">Optional Add-ons</h4>
-                <p className="text-slate-600">Additional add-on options will be available here.</p>
-              </div>
+              {currentConfig.hasPegboard && (
+                <>
+                  {!currentConfig.width || !currentConfig.length ? (
+                    <Alert>
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertDescription>
+                        Please specify sink dimensions in the Sink Body tab first.
+                      </AlertDescription>
+                    </Alert>
+                  ) : (
+                    <>
+                      {pegboardLoading ? (
+                        <div className="flex items-center gap-2">
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <span>Loading pegboard options...</span>
+                        </div>
+                      ) : pegboardOptions ? (
+                        <>
+                          {/* Pegboard Type */}
+                          <div className="space-y-2">
+                            <Label>Pegboard Type</Label>
+                            <RadioGroup 
+                              value={currentConfig.pegboardType} 
+                              onValueChange={(value) => updateConfig({ pegboardType: value })}
+                            >
+                              {pegboardOptions.types.map((type) => (
+                                <div key={type.id} className="flex items-center space-x-2">
+                                  <RadioGroupItem value={type.id} id={type.id} />
+                                  <Label htmlFor={type.id}>{type.name}</Label>
+                                </div>
+                              ))}
+                            </RadioGroup>
+                          </div>
+
+                          {/* Pegboard Size */}
+                          <div className="space-y-2">
+                            <Label>Pegboard Size</Label>
+                            {pegboardOptions.recommendedPegboard ? (
+                              <Alert>
+                                <CheckCircle className="h-4 w-4" />
+                                <AlertDescription>
+                                  Recommended: {pegboardOptions.recommendedPegboard.name} 
+                                  ({pegboardOptions.recommendedPegboard.covers})
+                                </AlertDescription>
+                              </Alert>
+                            ) : (
+                              <Alert>
+                                <Info className="h-4 w-4" />
+                                <AlertDescription>
+                                  Custom pegboard required for {currentConfig.width}" × {currentConfig.length}" sink
+                                  <br />
+                                  Part Number: {pegboardOptions.customPartNumberRule.replace(/\[width\]|\[length\]/g, (match) => 
+                                    match === '[width]' ? currentConfig.width : currentConfig.length
+                                  )}
+                                </AlertDescription>
+                              </Alert>
+                            )}
+                          </div>
+
+                          {/* Color Options */}
+                          {pegboardOptions.colorOptions.length > 0 && (
+                            <div className="space-y-2">
+                              <Label>Pegboard Color (Colorsafe+)</Label>
+                              <Select 
+                                value={currentConfig.pegboardColor} 
+                                onValueChange={(value) => updateConfig({ pegboardColor: value })}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select color" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {pegboardOptions.colorOptions[0].colors.map((color) => (
+                                    <SelectItem key={color} value={color}>
+                                      {color}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <Alert>
+                          <AlertCircle className="h-4 w-4" />
+                          <AlertDescription>
+                            Unable to load pegboard options. Please try again.
+                          </AlertDescription>
+                        </Alert>
+                      )}
+                    </>
+                  )}
+                </>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
       </Tabs>
-
-      {/* Navigation for Multiple Sinks */}
-      {buildNumbers.length > 1 && (
-        <Card className="bg-slate-50 border-slate-200">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div className="text-sm text-slate-600">
-                Configuration progress: {currentBuildIndex + 1} of {buildNumbers.length} sinks
-              </div>
-              <div className="flex space-x-2">
-                {buildNumbers.map((buildNum, index) => (
-                  <Button
-                    key={buildNum}
-                    variant={index === currentBuildIndex ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setCurrentBuildIndex(index)}
-                  >
-                    {buildNum}
-                  </Button>
-                ))}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
     </div>
   )
 }

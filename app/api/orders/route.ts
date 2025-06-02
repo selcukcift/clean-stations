@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
 import { z } from 'zod'
-import { cookies } from 'next/headers'
-import jwt from 'jsonwebtoken'
 import { generateBOMForOrder } from '@/src/services/bomService'
 
 const prisma = new PrismaClient()
@@ -69,7 +67,7 @@ const OrderCreateSchema = z.object({
 })
 
 // Use the centralized auth utility
-import { getAuthUser, checkUserRole } from '@/lib/nextAuthUtils'
+import { getAuthUser } from '@/lib/nextAuthUtils'
 
 // Helper function to save BOM items recursively
 async function saveBomItemsRecursive(
@@ -230,7 +228,7 @@ export async function POST(request: NextRequest) {
     })
 
     // Save BOMs to database - Use transaction for data consistency
-    const savedOrderWithBoms = await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx) => {
       // Create BOMs for each build number if bomResult has data
       if (bomResult && bomResult.length > 0) {
         for (const buildNumber of sinkSelection.buildNumbers) {

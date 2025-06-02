@@ -6,12 +6,12 @@ const prisma = new PrismaClient()
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { orderId: string } }
+  { params }: { params: Promise<{ orderId: string }> }
 ) {
+  const { orderId } = await params;
   try {
     // Authenticate user
     const user = await getAuthUser(request)
-    const { orderId } = params
 
     // Fetch the order with all required relations
     const order = await prisma.order.findUnique({

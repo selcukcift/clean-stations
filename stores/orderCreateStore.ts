@@ -28,13 +28,20 @@ export interface BasinConfiguration {
 }
 
 export interface FaucetConfiguration {
+  id?: string
   faucetTypeId?: string
   quantity?: number
+  placement?: string
 }
 
 export interface SprayerConfiguration {
-  hasSprayerSystem: boolean
+  id?: string
+  sprayerTypeId?: string
+  location?: string
+  hasSprayerSystem?: boolean
   sprayerTypeIds?: string[]
+  quantity?: number
+  locations?: string[]
 }
 
 export interface SinkConfiguration {
@@ -49,22 +56,31 @@ export interface SinkConfiguration {
   feetTypeId?: string
   feetType?: string
   pegboard: boolean
-  pegboardTypeId?: string
+  hasPegboard?: boolean
   pegboardType?: string
   pegboardColor?: string
   pegboardSizePartNumber?: string
   pegboardSizeType?: string
   pegboardWidth?: number
   pegboardLength?: number
-  workFlowDirection: 'Left' | 'Right'
+  workflowDirection?: 'LEFT_TO_RIGHT' | 'RIGHT_TO_LEFT'
+  workFlowDirection?: 'Left' | 'Right'
   basins: BasinConfiguration[]
-  faucet: FaucetConfiguration
+  faucets?: FaucetConfiguration[]
+  faucet?: FaucetConfiguration
   faucetType?: string
+  faucetTypeId?: string
   faucetQuantity?: number
-  sprayer: SprayerConfiguration
+  faucetPlacement?: string
+  autoSelectedFaucet?: boolean
+  sprayers?: SprayerConfiguration[]
+  sprayer?: SprayerConfiguration
+  hasSprayer?: boolean
   sprayerType?: string
+  sprayerTypeId?: string
   sprayerQuantity?: number
   sprayerLocation?: string
+  sprayerLocations?: string[]
   controlBoxId?: string
 }
 

@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -11,72 +8,267 @@ datasource db {
 }
 
 model Part {
-  partId                 String    @id @unique @map("PartID")
+  partId                 String              @id @unique @map("PartID")
   name                   String
   manufacturerPartNumber String?
   type                   PartType
   status                 Status
   photoURL               String?
   technicalDrawingURL    String?
-  createdAt              DateTime  @default(now())
-  updatedAt              DateTime  @updatedAt
+  createdAt              DateTime            @default(now())
+  updatedAt              DateTime            @updatedAt
   assemblyComponents     AssemblyComponent[]
 }
 
 model Assembly {
-  assemblyId      String    @id @unique @map("AssemblyID")
-  name            String
-  type            AssemblyType
-  categoryCode    String?
-  subcategoryCode String?
+  assemblyId        String              @id @unique @map("AssemblyID")
+  name              String
+  type              AssemblyType
+  categoryCode      String?
+  subcategoryCode   String?
   workInstructionId String?
-  qrData          String?
+  qrData            String?
   kitComponentsJson String?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-
-  components         AssemblyComponent[] @relation("ParentComponents")
-  childOfAssemblies  AssemblyComponent[] @relation("ChildComponents")
-  subcategories      Subcategory[]       @relation("SubcategoryAssemblies")
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  childOfAssemblies AssemblyComponent[] @relation("ChildComponents")
+  components        AssemblyComponent[] @relation("ParentComponents")
+  subcategories     Subcategory[]       @relation("SubcategoryAssemblies")
 }
 
 model AssemblyComponent {
-  id        Int     @id @default(autoincrement())
-  quantity  Int
-  notes     String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  parentAssembly   Assembly @relation("ParentComponents", fields: [parentAssemblyId], references: [assemblyId])
+  id               Int       @id @default(autoincrement())
+  quantity         Int
+  notes            String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
   parentAssemblyId String
-
-  childPart   Part?   @relation(fields: [childPartId], references: [partId])
-  childPartId String?
-
-  childAssembly   Assembly? @relation("ChildComponents", fields: [childAssemblyId], references: [assemblyId])
-  childAssemblyId String?
+  childPartId      String?
+  childAssemblyId  String?
+  childAssembly    Assembly? @relation("ChildComponents", fields: [childAssemblyId], references: [assemblyId])
+  childPart        Part?     @relation(fields: [childPartId], references: [partId])
+  parentAssembly   Assembly  @relation("ParentComponents", fields: [parentAssemblyId], references: [assemblyId])
 }
 
 model Category {
-  categoryId  String   @id @unique
-  name        String
-  description String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
+  categoryId    String        @id @unique
+  name          String
+  description   String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
   subcategories Subcategory[]
 }
 
 model Subcategory {
-  subcategoryId String   @id @unique
+  subcategoryId String     @id @unique
   name          String
   description   String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  categoryId    String
+  category      Category   @relation(fields: [categoryId], references: [categoryId])
+  assemblies    Assembly[] @relation("SubcategoryAssemblies")
+}
 
-  category   Category   @relation(fields: [categoryId], references: [categoryId])
-  categoryId String
-  assemblies Assembly[] @relation("SubcategoryAssemblies")
+model User {
+  id            String            @id @default(cuid())
+  username      String            @unique
+  email         String            @unique
+  passwordHash  String
+  fullName      String
+  role          UserRole
+  isActive      Boolean           @default(true)
+  initials      String
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  notifications Notification[]    @relation("UserNotifications")
+  createdOrders Order[]           @relation("OrderCreatedBy")
+  historyLogs   OrderHistoryLog[] @relation("UserHistoryLogs")
+  qcResults     OrderQcResult[]   @relation("UserQcResults")
+}
+
+model Order {
+  id                    String                 @id @default(cuid())
+  poNumber              String                 @unique
+  buildNumbers          String[]
+  customerName          String
+  projectName           String?
+  salesPerson           String
+  wantDate              DateTime
+  notes                 String?
+  language              String                 @default("EN")
+  orderStatus           OrderStatus            @default(ORDER_CREATED)
+  currentAssignee       String?
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  createdById           String
+  associatedDocuments   AssociatedDocument[]
+  basinConfigurations   BasinConfiguration[]
+  generatedBoms         Bom[]                  @relation("OrderBoms")
+  faucetConfigurations  FaucetConfiguration[]
+  notifications         Notification[]
+  createdBy             User                   @relation("OrderCreatedBy", fields: [createdById], references: [id])
+  historyLogs           OrderHistoryLog[]
+  qcResults             OrderQcResult[]
+  selectedAccessories   SelectedAccessory[]
+  sprayerConfigurations SprayerConfiguration[]
+
+  @@unique([poNumber, buildNumbers])
+}
+
+model BasinConfiguration {
+  id                  String   @id @default(cuid())
+  buildNumber         String
+  basinTypeId         String
+  basinSizePartNumber String?
+  basinCount          Int      @default(1)
+  addonIds            String[]
+  orderId             String
+  order               Order    @relation(fields: [orderId], references: [id])
+}
+
+model FaucetConfiguration {
+  id              String  @id @default(cuid())
+  buildNumber     String
+  faucetTypeId    String
+  faucetQuantity  Int     @default(1)
+  faucetPlacement String?
+  orderId         String
+  order           Order   @relation(fields: [orderId], references: [id])
+}
+
+model SprayerConfiguration {
+  id               String   @id @default(cuid())
+  buildNumber      String
+  hasSpray         Boolean  @default(false)
+  sprayerTypeIds   String[]
+  sprayerQuantity  Int      @default(0)
+  sprayerLocations String[]
+  orderId          String
+  order            Order    @relation(fields: [orderId], references: [id])
+}
+
+model SelectedAccessory {
+  id          String @id @default(cuid())
+  buildNumber String
+  assemblyId  String
+  quantity    Int    @default(1)
+  orderId     String
+  order       Order  @relation(fields: [orderId], references: [id])
+}
+
+model AssociatedDocument {
+  id         String   @id @default(cuid())
+  docName    String
+  docURL     String
+  uploadedBy String
+  timestamp  DateTime @default(now())
+  docType    String?
+  orderId    String
+  order      Order    @relation(fields: [orderId], references: [id])
+}
+
+model Bom {
+  id          String    @id @default(cuid())
+  buildNumber String?
+  generatedAt DateTime  @default(now())
+  orderId     String
+  order       Order     @relation("OrderBoms", fields: [orderId], references: [id])
+  bomItems    BomItem[]
+}
+
+model BomItem {
+  id                 String    @id @default(cuid())
+  partIdOrAssemblyId String
+  name               String
+  quantity           Int
+  itemType           String
+  category           String?
+  isCustom           Boolean   @default(false)
+  parentId           String?
+  bomId              String
+  bom                Bom       @relation(fields: [bomId], references: [id])
+  parent             BomItem?  @relation("ParentChildBomItem", fields: [parentId], references: [id])
+  children           BomItem[] @relation("ParentChildBomItem")
+}
+
+model OrderHistoryLog {
+  id        String   @id @default(cuid())
+  timestamp DateTime @default(now())
+  action    String
+  oldStatus String?
+  newStatus String?
+  notes     String?
+  orderId   String
+  userId    String
+  order     Order    @relation(fields: [orderId], references: [id])
+  user      User     @relation("UserHistoryLogs", fields: [userId], references: [id])
+}
+
+model Notification {
+  id          String   @id @default(cuid())
+  message     String
+  linkToOrder String?
+  isRead      Boolean  @default(false)
+  type        String?
+  createdAt   DateTime @default(now())
+  recipientId String
+  order       Order?   @relation(fields: [linkToOrder], references: [id])
+  recipient   User     @relation("UserNotifications", fields: [recipientId], references: [id])
+}
+
+model QcFormTemplate {
+  id                     String               @id @default(cuid())
+  name                   String
+  version                String               @default("1.0")
+  description            String?
+  isActive               Boolean              @default(true)
+  appliesToProductFamily String?
+  createdAt              DateTime             @default(now())
+  updatedAt              DateTime             @updatedAt
+  orderQcResults         OrderQcResult[]
+  items                  QcFormTemplateItem[]
+}
+
+model QcFormTemplateItem {
+  id            String              @id @default(cuid())
+  templateId    String
+  section       String
+  checklistItem String
+  itemType      QcItemType
+  options       Json?
+  expectedValue String?
+  order         Int
+  isRequired    Boolean             @default(true)
+  itemResults   OrderQcItemResult[]
+  template      QcFormTemplate      @relation(fields: [templateId], references: [id], onDelete: Cascade)
+}
+
+model OrderQcResult {
+  id               String              @id @default(cuid())
+  orderId          String
+  qcFormTemplateId String
+  qcPerformedById  String
+  qcTimestamp      DateTime            @default(now())
+  overallStatus    QcStatus            @default(PENDING)
+  notes            String?
+  itemResults      OrderQcItemResult[]
+  order            Order               @relation(fields: [orderId], references: [id])
+  qcFormTemplate   QcFormTemplate      @relation(fields: [qcFormTemplateId], references: [id])
+  qcPerformedBy    User                @relation("UserQcResults", fields: [qcPerformedById], references: [id])
+
+  @@unique([orderId, qcFormTemplateId])
+}
+
+model OrderQcItemResult {
+  id                   String             @id @default(cuid())
+  orderQcResultId      String
+  qcFormTemplateItemId String
+  resultValue          String?
+  isConformant         Boolean?
+  notes                String?
+  orderQcResult        OrderQcResult      @relation(fields: [orderQcResultId], references: [id], onDelete: Cascade)
+  qcFormTemplateItem   QcFormTemplateItem @relation(fields: [qcFormTemplateItemId], references: [id])
 }
 
 enum PartType {
@@ -96,24 +288,6 @@ enum AssemblyType {
   KIT
 }
 
-model User {
-  id           String   @id @default(cuid())
-  username     String   @unique
-  email        String   @unique
-  passwordHash String
-  fullName     String
-  role         UserRole
-  isActive     Boolean  @default(true)
-  initials     String
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  // Relations
-  createdOrders      Order[]             @relation("OrderCreatedBy")
-  historyLogs        OrderHistoryLog[]   @relation("UserHistoryLogs")
-  notifications      Notification[]      @relation("UserNotifications")
-}
-
 enum UserRole {
   ADMIN
   PRODUCTION_COORDINATOR
@@ -123,7 +297,6 @@ enum UserRole {
   SERVICE_DEPARTMENT
 }
 
-// Order Management Models
 enum OrderStatus {
   ORDER_CREATED
   PARTS_SENT_WAITING_ARRIVAL
@@ -136,154 +309,20 @@ enum OrderStatus {
   SHIPPED
 }
 
-model Order {
-  id             String      @id @default(cuid())
-  poNumber       String      @unique
-  buildNumbers   String[]    // Array of unique build numbers for this order
-  customerName   String
-  projectName    String?
-  salesPerson    String
-  wantDate       DateTime
-  notes          String?
-  language       String      @default("EN") // For manual selection (EN/FR)
-  orderStatus    OrderStatus @default(ORDER_CREATED)
-  currentAssignee String?    // UserID of currently assigned person
-  createdAt      DateTime    @default(now())
-  updatedAt      DateTime    @updatedAt
-
-  // Relations
-  createdBy           User                   @relation("OrderCreatedBy", fields: [createdById], references: [id])
-  createdById         String
-  basinConfigurations BasinConfiguration[]
-  faucetConfigurations FaucetConfiguration[]
-  sprayerConfigurations SprayerConfiguration[]
-  selectedAccessories SelectedAccessory[]
-  associatedDocuments AssociatedDocument[]
-  generatedBoms       Bom[]                  @relation("OrderBoms")
-  historyLogs         OrderHistoryLog[]
-  notifications       Notification[]
-
-  @@unique([poNumber, buildNumbers])
+enum QcItemType {
+  PASS_FAIL
+  TEXT_INPUT
+  NUMERIC_INPUT
+  SINGLE_SELECT
+  MULTI_SELECT
+  DATE_INPUT
+  CHECKBOX
 }
 
-model BasinConfiguration {
-  id                   String  @id @default(cuid())
-  buildNumber          String  // Which build this basin config applies to
-  basinTypeId          String  // Assembly ID for basin type (E-Sink, E-Drain, etc.)
-  basinSizePartNumber  String? // Part number for basin size (can be custom)
-  basinCount           Int     @default(1)
-  addonIds             String[] // Array of addon assembly IDs
-  
-  // Relations
-  order                Order   @relation(fields: [orderId], references: [id])
-  orderId              String
-}
-
-model FaucetConfiguration {
-  id              String   @id @default(cuid())
-  buildNumber     String   // Which build this faucet config applies to
-  faucetTypeId    String   // Assembly ID for faucet type
-  faucetQuantity  Int      @default(1)
-  faucetPlacement String?  // Center, Between Basins, etc.
-  
-  // Relations
-  order           Order    @relation(fields: [orderId], references: [id])
-  orderId         String
-}
-
-model SprayerConfiguration {
-  id                String   @id @default(cuid())
-  buildNumber       String   // Which build this sprayer config applies to
-  hasSpray          Boolean  @default(false)
-  sprayerTypeIds    String[] // Array of sprayer assembly IDs
-  sprayerQuantity   Int      @default(0)
-  sprayerLocations  String[] // Array of locations (Left Side, Right Side, etc.)
-  
-  // Relations
-  order             Order    @relation(fields: [orderId], references: [id])
-  orderId           String
-}
-
-model SelectedAccessory {
-  id           String @id @default(cuid())
-  buildNumber  String // Which build this accessory applies to
-  assemblyId   String // Assembly ID of the accessory
-  quantity     Int    @default(1)
-  
-  // Relations
-  order        Order  @relation(fields: [orderId], references: [id])
-  orderId      String
-}
-
-model AssociatedDocument {
-  id           String   @id @default(cuid())
-  docName      String   // Original filename
-  docURL       String   // Path to stored file
-  uploadedBy   String   // User ID who uploaded
-  timestamp    DateTime @default(now())
-  docType      String?  // PO_DOCUMENT, TECHNICAL_DRAWING, etc.
-  
-  // Relations
-  order        Order    @relation(fields: [orderId], references: [id])
-  orderId      String
-}
-
-// BOM (Bill of Materials) Models
-model Bom {
-  id           String    @id @default(cuid())
-  buildNumber  String?   // Which build this BOM applies to (null for order-wide BOMs)
-  generatedAt  DateTime  @default(now())
-  
-  // Relations
-  order        Order     @relation("OrderBoms", fields: [orderId], references: [id])
-  orderId      String
-  bomItems     BomItem[]
-}
-
-model BomItem {
-  id                   String    @id @default(cuid())
-  partIdOrAssemblyId   String    // The part number or assembly ID
-  name                 String    // Display name
-  quantity             Int       // Quantity needed
-  itemType             String    // PART, ASSEMBLY, CUSTOM_PART, etc.
-  category             String?   // SYSTEM, SINK_BODY, LEGS, etc.
-  isCustom             Boolean   @default(false)
-  parentId             String?   // For hierarchical structure
-  
-  // Relations
-  bom                  Bom       @relation(fields: [bomId], references: [id])
-  bomId                String
-  children             BomItem[] @relation("ParentChildBomItem")
-  parent               BomItem?  @relation("ParentChildBomItem", fields: [parentId], references: [id])
-}
-
-// Order History and Workflow
-model OrderHistoryLog {
-  id        String   @id @default(cuid())
-  timestamp DateTime @default(now())
-  action    String   // Action taken
-  oldStatus String?  // Previous status
-  newStatus String?  // New status
-  notes     String?  // Additional notes
-  
-  // Relations
-  order     Order    @relation(fields: [orderId], references: [id])
-  orderId   String
-  user      User     @relation("UserHistoryLogs", fields: [userId], references: [id])
-  userId    String
-}
-
-// Notifications
-model Notification {
-  id           String   @id @default(cuid())
-  message      String
-  linkToOrder  String?  // Order ID to link to
-  isRead       Boolean  @default(false)
-  type         String?  // ORDER_CREATED, STATUS_CHANGED, etc.
-  createdAt    DateTime @default(now())
-  
-  // Relations
-  recipient    User     @relation("UserNotifications", fields: [recipientId], references: [id])
-  recipientId  String
-  order        Order?   @relation(fields: [linkToOrder], references: [id])
+enum QcStatus {
+  PENDING
+  IN_PROGRESS
+  PASSED
+  FAILED
+  REQUIRES_REVIEW
 }

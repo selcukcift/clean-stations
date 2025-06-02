@@ -5,6 +5,7 @@ import { useState } from "react"
 import { LogoutButton } from "@/components/ui/logout-button"
 import { useAuthStore } from "@/stores/authStore"
 import { Button } from "@/components/ui/button"
+import { NotificationBell } from "@/components/notifications/NotificationBell"
 
 interface AppHeaderProps {
   title?: string
@@ -41,6 +42,9 @@ export function AppHeader({
           {/* Desktop Navigation */}
           {showUserInfo && user && (
             <div className="hidden md:flex items-center space-x-4">
+              {/* Notification Bell */}
+              <NotificationBell />
+              
               <div className="flex items-center space-x-3">
                 {/* User Avatar */}
                 <div className="w-10 h-10 bg-indigo-600 rounded-full flex items-center justify-center">
@@ -102,7 +106,11 @@ export function AppHeader({
               </div>
 
               {/* Mobile Actions */}
-              <div className="px-2">
+              <div className="px-2 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-600">Notifications</span>
+                  <NotificationBell />
+                </div>
                 <LogoutButton className="w-full" />
               </div>
             </div>

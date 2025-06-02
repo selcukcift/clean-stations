@@ -2,39 +2,14 @@ import { NextRequest, NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
 import { writeFile, mkdir } from 'fs/promises'
 import { join } from 'path'
-import { cookies } from 'next/headers'
-import jwt from 'jsonwebtoken'
+import { getAuthUser } from '@/lib/nextAuthUtils'
 
 const prisma = new PrismaClient()
 
-// Authentication helper
-async function getAuthenticatedUser(request: NextRequest) {
-  const cookieStore = await cookies()
-  const token = cookieStore.get('auth-token')?.value
-
-  if (!token) {
-    throw new Error('Authentication required')
-  }
-
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { userId: string }
-    const user = await prisma.user.findUnique({
-      where: { id: decoded.userId }
-    })
-    
-    if (!user || !user.isActive) {
-      throw new Error('Invalid user')
-    }
-    
-    return user
-  } catch (error) {
-    throw new Error('Invalid authentication token')
-  }
-}
 
 export async function POST(request: NextRequest) {
   try {
-    const user = await getAuthenticatedUser(request)
+    const user = await getAuthUser(request)
     
     const formData = await request.formData()
     const file = formData.get('file') as File
@@ -79,7 +54,7 @@ export async function POST(request: NextRequest) {
     const uploadDir = join(process.cwd(), 'uploads', 'documents')
     try {
       await mkdir(uploadDir, { recursive: true })
-    } catch (error) {
+    } catch {
       // Directory might already exist, which is fine
     }
 
@@ -132,7 +107,7 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const user = await getAuthenticatedUser(request)
+    const user = await getAuthUser(request)
     
     const { searchParams } = new URL(request.url)
     const documentId = searchParams.get('documentId')
@@ -166,7 +141,7 @@ export async function DELETE(request: NextRequest) {
 
     // Delete file from filesystem
     try {
-      const fs = require('fs').promises
+      const { promises: fs } = await import('fs')
       const filePath = join(process.cwd(), 'uploads', 'documents', document.docURL.split('/').pop()!)
       await fs.unlink(filePath)
     } catch (error) {

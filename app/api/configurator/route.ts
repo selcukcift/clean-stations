@@ -26,47 +26,47 @@ export async function GET(request: NextRequest) {
       )
     }
     const { searchParams } = new URL(request.url)
-    const type = searchParams.get('type')
+    const queryType = searchParams.get('queryType')
+    const width = searchParams.get('width')
+    const length = searchParams.get('length')
 
-    switch (type) {
-      case 'sink-models': {
+    switch (queryType) {
+      case 'sinkModels': {
         const family = searchParams.get('family') || 'MDRD'
         const data = await configuratorService.getSinkModels(family)
         return NextResponse.json({ success: true, data })
       }
-      case 'legs-types': {
+      case 'legTypes': {
         const data = await configuratorService.getLegTypes()
         return NextResponse.json({ success: true, data })
       }
-      case 'feet-types': {
+      case 'feetTypes': {
         const data = await configuratorService.getFeetTypes()
         return NextResponse.json({ success: true, data })
       }
-      case 'pegboard-types': {
-        const data = await configuratorService.getPegboardOptions()
+      case 'pegboardOptions': {
+        const sinkDimensions = (width && length) ? { 
+          width: parseInt(width), 
+          length: parseInt(length) 
+        } : {}
+        const data = await configuratorService.getPegboardOptions(sinkDimensions)
         return NextResponse.json({ success: true, data })
       }
-      case 'basin-types': {
+      case 'basinTypes': {
         const data = await configuratorService.getBasinTypeOptions()
         return NextResponse.json({ success: true, data })
       }
-      case 'basin-sizes': {
+      case 'basinSizes': {
         const data = await configuratorService.getBasinSizeOptions()
         return NextResponse.json({ success: true, data })
       }
-      case 'faucet-types': {
-        const data = await configuratorService.getFaucetTypeOptions()
+      case 'faucetTypes': {
+        const basinType = searchParams.get('basinType') || ''
+        const data = await configuratorService.getFaucetTypeOptions(basinType)
         return NextResponse.json({ success: true, data })
       }
-      case 'sprayer-types': {
+      case 'sprayerTypes': {
         const data = await configuratorService.getSprayerTypeOptions()
-        return NextResponse.json({ success: true, data })
-      }      case 'control-box': {
-        // Get basin configurations from request body or query params
-        const basinConfigurationsArray = searchParams.get('basins') 
-          ? JSON.parse(searchParams.get('basins')!) 
-          : []
-        const data = await configuratorService.getControlBox(basinConfigurationsArray)
         return NextResponse.json({ success: true, data })
       }
       case 'all': {
@@ -78,7 +78,7 @@ export async function GET(request: NextRequest) {
           configuratorService.getPegboardOptions(),
           configuratorService.getBasinTypeOptions(),
           configuratorService.getBasinSizeOptions(),
-          configuratorService.getFaucetTypeOptions(),
+          configuratorService.getFaucetTypeOptions(undefined),
           configuratorService.getSprayerTypeOptions()
         ])
         return NextResponse.json({

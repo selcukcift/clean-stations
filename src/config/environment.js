@@ -18,12 +18,12 @@ const NODE_ENV = process.env.NODE_ENV || ENVIRONMENTS.DEVELOPMENT;
 
 // Server configuration
 const SERVER_CONFIG = {
-  port: parseInt(process.env.PORT) || 3001,
+  port: parseInt(process.env.PORT) || 3004,
   host: process.env.HOST || 'localhost',
     // CORS settings
   corsOrigins: process.env.CORS_ORIGINS 
     ? process.env.CORS_ORIGINS.split(',')
-    : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3005'],
+    : ['http://localhost:3000', 'http://localhost:3004', 'http://localhost:3005'],
   
   // Security settings
   jwtSecret: process.env.JWT_SECRET || 'your-jwt-secret-key-change-in-production',
@@ -113,6 +113,7 @@ function getEnvironmentConfig() {
         port: parseInt(process.env.TEST_PORT) || 3002,
         logLevel: 'error',
         jwtExpiresIn: '1h', // Shorter expiry for tests
+        corsOrigins: ['http://localhost:3002', 'http://localhost:3003'], // Test environment ports
       };
       
     case ENVIRONMENTS.DEVELOPMENT:
