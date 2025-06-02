@@ -7,12 +7,13 @@ import { Package, Clipboard, Settings, Wrench } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 import { AppHeader } from "@/components/ui/app-header"
-import { useAuthStore } from "@/stores/authStore"
+import { useSession } from "next-auth/react"
 import { ProductionCoordinatorDashboard } from "@/components/dashboard/ProductionCoordinatorDashboard"
 import { ProcurementSpecialistDashboard } from "@/components/dashboard/ProcurementSpecialistDashboard"
 import { AssemblerDashboard } from "@/components/dashboard/AssemblerDashboard"
 import { QCPersonDashboard } from "@/components/dashboard/QCPersonDashboard"
 import { AdminDashboard } from "@/components/dashboard/AdminDashboard"
+import { ServiceDepartmentDashboard } from "@/components/dashboard/ServiceDepartmentDashboard"
 
 const roleIcons = {
   ADMIN: Settings,
@@ -32,17 +33,34 @@ const roleDescriptions = {
 
 export default function DashboardPage() {
   const router = useRouter()
-  const { user, isAuthenticated } = useAuthStore()
+  const { data: session, status } = useSession()
 
   useEffect(() => {
-    if (!isAuthenticated || !user) {
+    if (status === 'unauthenticated') {
       router.push('/login')
     }
-  }, [isAuthenticated, user, router])
+  }, [status, router])
 
-  if (!user) {
+  if (status === 'loading') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-indigo-600 rounded-2xl mb-4">
+            <Package className="w-8 h-8 text-white animate-pulse" />
+          </div>
+          <h1 className="text-xl font-semibold text-slate-900 mb-2">
+            Loading Dashboard...
+          </h1>
+        </div>
+      </div>
+    )
+  }
+
+  if (!session?.user) {
     return null
   }
+
+  const user = session.user
 
   const RoleIcon = roleIcons[user.role] || Settings
 
@@ -59,6 +77,8 @@ export default function DashboardPage() {
         return <AssemblerDashboard />
       case 'QC_PERSON':
         return <QCPersonDashboard />
+      case 'SERVICE_DEPARTMENT':
+        return <ServiceDepartmentDashboard />
       default:
         return null
     }

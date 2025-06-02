@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import { Badge } from '@/components/ui/badge'
-import { useAuthStore } from '@/stores/authStore'
+import { useSession } from 'next-auth/react'
 import { nextJsApiClient } from '@/lib/api'
 import { NotificationItem } from './NotificationItem'
 import { useToast } from '@/hooks/use-toast'
@@ -30,22 +30,22 @@ export function NotificationBell() {
   const [unreadCount, setUnreadCount] = useState(0)
   const [isOpen, setIsOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
-  const { user } = useAuthStore()
+  const { data: session } = useSession()
   const { toast } = useToast()
 
   // Fetch unread notifications on mount
   useEffect(() => {
-    if (user) {
+    if (session?.user) {
       fetchNotifications(true)
     }
-  }, [user])
+  }, [session?.user])
 
   // Fetch all notifications when popover opens
   useEffect(() => {
-    if (isOpen && user) {
+    if (isOpen && session?.user) {
       fetchNotifications(false)
     }
-  }, [isOpen, user])
+  }, [isOpen, session?.user])
 
   const fetchNotifications = async (unreadOnly: boolean) => {
     try {
@@ -63,7 +63,15 @@ export function NotificationBell() {
         }
         setUnreadCount(response.data.unreadCount)
       }
-    } catch (error) {
+    } catch (error: any) {
+      // Handle authentication errors gracefully
+      if (error.response?.status === 401) {
+        console.log('Authentication expired - notifications unavailable')
+        // Don't show error toast for auth issues, user will be redirected to login
+        setUnreadCount(0)
+        setNotifications([])
+        return
+      }
       console.error('Failed to fetch notifications:', error)
     } finally {
       setIsLoading(false)
@@ -85,7 +93,12 @@ export function NotificationBell() {
         )
         setUnreadCount(prev => Math.max(0, prev - 1))
       }
-    } catch (error) {
+    } catch (error: any) {
+      // Handle authentication errors gracefully
+      if (error.response?.status === 401) {
+        console.log('Authentication expired - cannot mark notification as read')
+        return
+      }
       console.error('Failed to mark notification as read:', error)
       toast({
         variant: "destructive",
@@ -114,7 +127,12 @@ export function NotificationBell() {
           description: `Marked ${response.data.count} notifications as read`
         })
       }
-    } catch (error) {
+    } catch (error: any) {
+      // Handle authentication errors gracefully
+      if (error.response?.status === 401) {
+        console.log('Authentication expired - cannot mark all notifications as read')
+        return
+      }
       console.error('Failed to mark all notifications as read:', error)
       toast({
         variant: "destructive",
@@ -124,7 +142,7 @@ export function NotificationBell() {
     }
   }
 
-  if (!user) {
+  if (!session?.user) {
     return null
   }
 

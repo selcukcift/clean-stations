@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
-import { getAuthUser, checkUserRole } from '@/lib/nextAuthUtils';
+import { getAuthUser, checkUserRole } from '@/lib/auth';
 import { z } from 'zod';
 
 const prisma = new PrismaClient();
@@ -26,7 +26,15 @@ const QcTemplateCreateSchema = z.object({
 // GET /api/admin/qc-templates - List all QC templates
 export async function GET(request: NextRequest) {
   try {
-    const user = await getAuthUser(request);
+    const user = await getAuthUser();
+    
+    if (!user) {
+      return NextResponse.json(
+        { success: false, message: 'Authentication required' },
+        { status: 401 }
+      )
+    }
+    
     if (!checkUserRole(user, ['ADMIN'])) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
@@ -53,7 +61,15 @@ export async function GET(request: NextRequest) {
 // POST /api/admin/qc-templates - Create a new QC template
 export async function POST(request: NextRequest) {
   try {
-    const user = await getAuthUser(request);
+    const user = await getAuthUser();
+    
+    if (!user) {
+      return NextResponse.json(
+        { success: false, message: 'Authentication required' },
+        { status: 401 }
+      )
+    }
+    
     if (!checkUserRole(user, ['ADMIN'])) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }

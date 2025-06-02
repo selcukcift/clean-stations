@@ -2,12 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 // [Per Coding Prompt Chains v5 - Hybrid Backend]
 // Use src/services/configuratorService.js for all configuration data
 import * as configuratorService from '@/src/services/configuratorService'
-import { getAuthUser } from '@/lib/nextAuthUtils'
+import { getAuthUser } from '@/lib/auth'
 
 export async function POST(request: NextRequest) {
   try {
     // Add authentication as per Prompt 2.B
-    const user = await getAuthUser(request)
+    const user = await getAuthUser()
     if (!user) {
       return NextResponse.json(
         { success: false, message: 'Authentication required' },

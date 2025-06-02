@@ -67,7 +67,7 @@ const OrderCreateSchema = z.object({
 })
 
 // Use the centralized auth utility
-import { getAuthUser } from '@/lib/nextAuthUtils'
+import { getAuthUser } from '@/lib/auth'
 
 // Helper function to save BOM items recursively
 async function saveBomItemsRecursive(
@@ -100,7 +100,14 @@ async function saveBomItemsRecursive(
 export async function POST(request: NextRequest) {
   try {
     // Authenticate user using centralized utility
-    const user = await getAuthUser(request)
+    const user = await getAuthUser()
+    
+    if (!user) {
+      return NextResponse.json(
+        { success: false, message: 'Authentication required' },
+        { status: 401 }
+      )
+    }
     
     // Parse and validate request body
     const body = await request.json()
@@ -295,7 +302,14 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
-    const user = await getAuthUser(request)
+    const user = await getAuthUser()
+    
+    if (!user) {
+      return NextResponse.json(
+        { success: false, message: 'Authentication required' },
+        { status: 401 }
+      )
+    }
     
     const { searchParams } = new URL(request.url)
     const page = parseInt(searchParams.get('page') || '1')

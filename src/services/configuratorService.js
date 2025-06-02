@@ -7,6 +7,33 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
 /**
+ * Get available sink families
+ * @returns {Promise<Array>} Available sink families
+ */
+async function getSinkFamilies() {
+    return [
+        { 
+            code: 'MDRD', 
+            name: 'MDRD CleanStation', 
+            available: true,
+            description: 'Medical Device Reprocessing Department CleanStations for healthcare facilities'
+        },
+        { 
+            code: 'ENDOSCOPE_CLEANSTATION', 
+            name: 'Endoscope CleanStation', 
+            available: false,
+            description: 'Specialized CleanStations for endoscope reprocessing'
+        },
+        { 
+            code: 'INSTROSINK', 
+            name: 'InstroSink', 
+            available: false,
+            description: 'Instrument cleaning and reprocessing sinks'
+        }
+    ];
+}
+
+/**
  * Get sink models for a specific family
  * @param {string} family - Sink family (MDRD, ENDOSCOPE_CLEANSTATION, INSTROSINK)
  * @returns {Promise<Array>} Available sink models
@@ -62,12 +89,12 @@ async function getSinkBodyAssembly(length) {
 async function getLegTypes() {
     const legOptions = [
         // Height Adjustable
-        { assemblyId: '711.97', name: 'T2-DL27-KIT', type: 'HEIGHT_ADJUSTABLE', legType: 'DL27' },
-        { assemblyId: '711.98', name: 'T2-DL14-KIT', type: 'HEIGHT_ADJUSTABLE', legType: 'DL14' },
-        { assemblyId: '711.99', name: 'T2-LC1-KIT', type: 'HEIGHT_ADJUSTABLE', legType: 'LC1' },
+        { assemblyId: 'T2-DL27-KIT', name: 'T2-DL27-KIT', type: 'HEIGHT_ADJUSTABLE', legType: 'DL27' },
+        { assemblyId: 'T2-DL14-KIT', name: 'T2-DL14-KIT', type: 'HEIGHT_ADJUSTABLE', legType: 'DL14' },
+        { assemblyId: 'T2-LC1-KIT', name: 'T2-LC1-KIT', type: 'HEIGHT_ADJUSTABLE', legType: 'LC1' },
         // Fixed Height
-        { assemblyId: '711.100', name: 'T2-DL27-FH-KIT', type: 'FIXED_HEIGHT', legType: 'DL27' },
-        { assemblyId: '711.101', name: 'T2-DL14-FH-KIT', type: 'FIXED_HEIGHT', legType: 'DL14' }
+        { assemblyId: 'T2-DL27-FH-KIT', name: 'T2-DL27-FH-KIT', type: 'FIXED_HEIGHT', legType: 'DL27' },
+        { assemblyId: 'T2-DL14-FH-KIT', name: 'T2-DL14-FH-KIT', type: 'FIXED_HEIGHT', legType: 'DL14' }
     ];
     
     // Verify assemblies exist in database
@@ -94,8 +121,8 @@ async function getLegTypes() {
  */
 async function getFeetTypes() {
     const feetOptions = [
-        { assemblyId: '711.95', name: 'T2-LEVELING-CASTOR-475', type: 'LOCK_LEVELING_CASTERS' },
-        { assemblyId: '711.96', name: 'T2-SEISMIC-FEET', type: 'SS_ADJUSTABLE_SEISMIC_FEET' }
+        { assemblyId: 'T2-LEVELING-CASTOR-475', name: 'T2-LEVELING-CASTOR-475', type: 'LOCK_LEVELING_CASTERS' },
+        { assemblyId: 'T2-SEISMIC-FEET', name: 'T2-SEISMIC-FEET', type: 'SS_ADJUSTABLE_SEISMIC_FEET' }
     ];
     
     const assemblyIds = feetOptions.map(opt => opt.assemblyId);
@@ -453,6 +480,7 @@ function getSprayerLocationOptions() {
 }
 
 module.exports = {
+    getSinkFamilies,
     getSinkModels,
     getSinkBodyAssembly,
     getLegTypes,

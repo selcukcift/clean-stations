@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
-import { getAuthUser, checkUserRole } from '@/lib/nextAuthUtils';
+import { getAuthUser, checkUserRole } from '@/lib/auth';
 import { z } from 'zod';
 
 const prisma = new PrismaClient();
@@ -25,7 +25,15 @@ export async function GET(
 ) {
   const { orderId } = await params;
   try {
-    const user = await getAuthUser(request);
+    const user = await getAuthUser();
+    
+    if (!user) {
+      return NextResponse.json(
+        { success: false, message: 'Authentication required' },
+        { status: 401 }
+      )
+    }
+    
     if (!checkUserRole(user, ['ASSEMBLER', 'QC_PERSON', 'PRODUCTION_COORDINATOR', 'ADMIN'])) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
@@ -71,7 +79,15 @@ export async function POST(
 ) {
   const { orderId } = await params;
   try {
-    const user = await getAuthUser(request);
+    const user = await getAuthUser();
+    
+    if (!user) {
+      return NextResponse.json(
+        { success: false, message: 'Authentication required' },
+        { status: 401 }
+      )
+    }
+    
     if (!checkUserRole(user, ['ASSEMBLER', 'QC_PERSON'])) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }

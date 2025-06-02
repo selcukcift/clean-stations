@@ -29,7 +29,12 @@ const steps = [
   { number: 5, title: "Review", description: "Review and submit order" }
 ]
 
-export function OrderWizard() {
+interface OrderWizardProps {
+  isEditMode?: boolean
+  orderId?: string
+}
+
+export function OrderWizard({ isEditMode = false, orderId }: OrderWizardProps) {
   const { currentStep, setCurrentStep, isStepValid } = useOrderCreateStore()
 
   const handleNext = () => {
@@ -62,7 +67,7 @@ export function OrderWizard() {
       case 4:
         return <AccessoriesStep />
       case 5:
-        return <ReviewStep />
+        return <ReviewStep isEditMode={isEditMode} orderId={orderId} />
       default:
         return null
     }

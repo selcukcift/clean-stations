@@ -22,7 +22,9 @@ import {
   Package, 
   AlertCircle,
   Info,
-  CheckCircle
+  CheckCircle,
+  Plus,
+  Minus
 } from "lucide-react"
 import { nextJsApiClient } from '@/lib/api'
 import { useToast } from "@/hooks/use-toast"
@@ -259,6 +261,16 @@ export function ConfigurationStep() {
             title: "Auto-Selection",
             description: "Gooseneck faucet automatically selected for E-Sink DI basin",
             duration: 3000
+          })
+        } else if (currentConfig.faucets && currentConfig.faucets.length > 0) {
+          // Update existing faucets to Gooseneck if DI basin is selected
+          const updatedFaucets = currentConfig.faucets.map(faucet => ({
+            ...faucet,
+            faucetTypeId: gooseneckFaucet.assemblyId
+          }))
+          updateConfig({ 
+            faucets: updatedFaucets,
+            autoSelectedFaucet: true
           })
         }
         
@@ -877,6 +889,7 @@ export function ConfigurationStep() {
                                 updatedFaucets[index] = { ...faucet, faucetTypeId: value }
                                 updateConfig({ faucets: updatedFaucets })
                               }}
+                              disabled={currentConfig.basins?.some((b: any) => b.basinType === 'E_SINK_DI')}
                             >
                               <SelectTrigger>
                                 <SelectValue placeholder="Select faucet type" />
@@ -917,12 +930,11 @@ export function ConfigurationStep() {
                         </div>
                         
                         {/* Auto-selection notice */}
-                        {currentConfig.basins?.some((b: any) => b.basinType === 'E_SINK_DI') && 
-                         faucet.faucetTypeId === '706.60' && (
+                        {currentConfig.basins?.some((b: any) => b.basinType === 'E_SINK_DI') && (
                           <Alert className="mt-2">
                             <Info className="h-4 w-4" />
                             <AlertDescription className="text-sm">
-                              Gooseneck faucet is recommended for E-Sink DI basins
+                              Gooseneck faucet is automatically selected and required for E-Sink DI basins
                             </AlertDescription>
                           </Alert>
                         )}

@@ -1,13 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
-import { getAuthUser, checkUserRole } from '@/lib/nextAuthUtils';
+import { getAuthUser, checkUserRole } from '@/lib/auth';
 
 const prisma = new PrismaClient();
 
 // GET /api/qc/summary - Get QC summary statistics
 export async function GET(request: NextRequest) {
   try {
-    const user = await getAuthUser(request);
+    const user = await getAuthUser();
+    
+    if (!user) {
+      return NextResponse.json(
+        { success: false, message: 'Authentication required' },
+        { status: 401 }
+      )
+    }
+    
     if (!checkUserRole(user, ['QC_PERSON', 'PRODUCTION_COORDINATOR', 'ADMIN'])) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }

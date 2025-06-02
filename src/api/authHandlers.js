@@ -1,13 +1,9 @@
 const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
 const { PrismaClient } = require('@prisma/client');
 const { parseJSONBody, sendJSONResponse } = require('../lib/requestUtils');
+const sessionManager = require('../lib/sessionManager');
 
 const prisma = new PrismaClient();
-
-// JWT Secret (should be in environment variables)
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '24h';
 
 /**
  * Register a new user

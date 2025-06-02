@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
-import { getAuthUser } from '@/lib/nextAuthUtils'
+import { getAuthUser } from '@/lib/auth'
 
 const prisma = new PrismaClient()
 
@@ -11,7 +11,7 @@ export async function GET(
   const { orderId } = await params;
   try {
     // Authenticate user
-    const user = await getAuthUser(request)
+    const user = await getAuthUser()
     if (!user) {
       return NextResponse.json(
         { error: 'Authentication required' },
@@ -204,7 +204,7 @@ export async function POST(
 ) {
   const { orderId } = await params;
   try {
-    const user = await getAuthUser(request)
+    const user = await getAuthUser()
     if (!user) {
       return NextResponse.json(
         { error: 'Authentication required' },

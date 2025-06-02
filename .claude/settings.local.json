@@ -28,8 +28,22 @@
       "Bash(find:*)",
       "Bash(timeout 10 npm run build:*)",
       "Bash(npm run prisma:generate:*)",
-      "Bash(timeout 300 npm run build)"
+      "Bash(timeout 300 npm run build)",
+      "Bash(claude --mcp-debug)",
+      "Bash(sudo apt-get:*)",
+      "Bash(sudo apt-get install:*)",
+      "Bash(npm run prisma:seed:*)",
+      "WebFetch(domain:ui.shadcn.com)",
+      "Bash(mkdir:*)",
+      "Bash(npm run prisma:migrate:*)",
+      "Bash(mv:*)",
+      "Bash(cp:*)",
+      "Bash(npm run dev:*)",
+      "Bash(pkill:*)",
+      "Bash(true)",
+      "Bash(ss:*)"
     ],
     "deny": []
-  }
+  },
+  "enableAllProjectMcpServers": false
 }

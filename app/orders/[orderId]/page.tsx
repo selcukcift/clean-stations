@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { nextJsApiClient } from "@/lib/api"
-import { useAuthStore } from "@/stores/authStore"
+import { useSession } from "next-auth/react"
 import { useToast } from "@/hooks/use-toast"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -24,7 +24,8 @@ import {
   FileText,
   Package,
   Download,
-  Loader2
+  Loader2,
+  Edit
 } from "lucide-react"
 import { format } from "date-fns"
 import { BOMDisplay } from "@/components/order/BOMDisplay"
@@ -62,7 +63,8 @@ export default function OrderDetailsPage() {
   const params = useParams()
   const router = useRouter()
   const { toast } = useToast()
-  const { user } = useAuthStore()
+  const { data: session } = useSession()
+  const user = session?.user
   const [order, setOrder] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [statusUpdating, setStatusUpdating] = useState(false)
@@ -475,6 +477,30 @@ export default function OrderDetailsPage() {
 
         {/* BOM Tab */}
         <TabsContent value="bom" className="space-y-4">
+          {/* Edit Configuration Button - Only show for orders that can be edited */}
+          {order.orderStatus === 'ORDER_CREATED' && (
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="font-medium">Need to modify the configuration?</h3>
+                    <p className="text-sm text-slate-600 mt-1">
+                      You can edit the sink configuration while the order is in "Order Created" status
+                    </p>
+                  </div>
+                  <Button 
+                    variant="outline"
+                    onClick={() => router.push(`/orders/edit/${order.id}`)}
+                    className="flex items-center gap-2"
+                  >
+                    <Edit className="w-4 h-4" />
+                    Edit Configuration
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+          
           {order.generatedBoms && order.generatedBoms.length > 0 ? (
             <BOMDisplay
               orderId={order.id}

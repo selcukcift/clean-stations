@@ -2,14 +2,14 @@ import { NextRequest, NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
 import { writeFile, mkdir } from 'fs/promises'
 import { join } from 'path'
-import { getAuthUser } from '@/lib/nextAuthUtils'
+import { getAuthUser } from '@/lib/auth'
 
 const prisma = new PrismaClient()
 
 
 export async function POST(request: NextRequest) {
   try {
-    const user = await getAuthUser(request)
+    const user = await getAuthUser()
     
     const formData = await request.formData()
     const file = formData.get('file') as File
@@ -107,7 +107,7 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const user = await getAuthUser(request)
+    const user = await getAuthUser()
     
     const { searchParams } = new URL(request.url)
     const documentId = searchParams.get('documentId')

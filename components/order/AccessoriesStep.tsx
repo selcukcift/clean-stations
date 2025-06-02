@@ -388,7 +388,7 @@ export function AccessoriesStep() {
                           {buildNumbers.map((buildNumber) => {
                             const quantity = getAccessoryQuantity(accessory.assemblyId, buildNumber)
                             return (
-                              <div key={buildNumber} className="flex items-center justify-between p-2 bg-slate-50 rounded">
+                              <div key={`${accessory.assemblyId}-${buildNumber}`} className="flex items-center justify-between p-2 bg-slate-50 rounded">
                                 <span className="text-sm font-medium">
                                   Build: {buildNumber}
                                 </span>
@@ -473,7 +473,7 @@ export function AccessoriesStep() {
                         {buildAccessories.length > 0 ? (
                           <div className="space-y-2">
                             {buildAccessories.map((accessory, index) => (
-                              <div key={index} className="text-sm">
+                              <div key={`${buildNumber}-${accessory.accessoryId}-${index}`} className="text-sm">
                                 <div className="flex justify-between items-start">
                                   <div className="flex-1">
                                     <p className="font-medium text-slate-900">

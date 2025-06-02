@@ -64,9 +64,14 @@ export function SinkSelectionStep() {
   }, [sinkSelection.quantity, sinkSelection.buildNumbers])
 
   const handleFamilyChange = (family: string) => {
-    if (family === 'ENDOSCOPE' || family === 'INSTROSINK') {
-      // Show construction modal or redirect - for now just alert
-      alert('This sink family is under construction. Please select MDRD CleanStation.')
+    if (family === 'ENDOSCOPE_CLEANSTATION') {
+      // Redirect to under construction page
+      window.location.href = '/under-construction/endoscope'
+      return
+    }
+    if (family === 'INSTROSINK') {
+      // Redirect to under construction page
+      window.location.href = '/under-construction/instrosink'
       return
     }
     updateSinkSelection({ sinkFamily: family })
@@ -174,10 +179,12 @@ export function SinkSelectionStep() {
                     <span className="text-xs font-medium text-blue-600">i</span>
                   </div>
                   <div className="text-sm text-blue-800">
-                    <p className="font-medium mb-1">MDRD CleanStation Selected</p>
+                    <p className="font-medium mb-1">
+                      {sinkFamilies.find(f => f.value === sinkSelection.sinkFamily)?.label || sinkSelection.sinkFamily} Selected
+                    </p>
                     <p className="text-xs">
-                      Medical Device Reprocessing Department CleanStations for healthcare facilities.
-                      Available in 1, 2, or 3 basin configurations.
+                      {sinkFamilies.find(f => f.value === sinkSelection.sinkFamily)?.description || 
+                       'Medical Device Reprocessing Department CleanStations for healthcare facilities. Available in 1, 2, or 3 basin configurations.'}
                     </p>
                   </div>
                 </div>

@@ -2,17 +2,23 @@
 
 import { useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { useAuthStore } from "@/stores/authStore"
+import { useSession } from "next-auth/react"
 import { useOrderCreateStore } from "@/stores/orderCreateStore"
 import { AppHeader } from "@/components/ui/app-header"
 import { OrderWizard } from "@/components/order/OrderWizard"
 
 export default function CreateOrderPage() {
   const router = useRouter()
-  const { user, isAuthenticated } = useAuthStore()
+  const { data: session, status } = useSession()
+  const isAuthenticated = status === 'authenticated'
+  const user = session?.user
   const { resetForm } = useOrderCreateStore()
 
   useEffect(() => {
+    if (status === 'loading') {
+      return // Wait for auth to load
+    }
+    
     if (!isAuthenticated || !user) {
       router.push('/login')
       return
@@ -26,7 +32,7 @@ export default function CreateOrderPage() {
 
     // Reset form when page loads
     resetForm()
-  }, [isAuthenticated, user, router, resetForm])
+  }, [status, isAuthenticated, user, router, resetForm])
 
   if (!user || !['PRODUCTION_COORDINATOR', 'ADMIN'].includes(user.role)) {
     return null

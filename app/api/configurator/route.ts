@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 // [Per Coding Prompt Chains v5 - Hybrid Backend]
 // Use src/services/configuratorService.js for all configuration data
 import configuratorService from '@/src/services/configuratorService'
-import { getAuthUser } from '@/lib/nextAuthUtils'
+import { getAuthUser } from '@/lib/auth'
 
 export async function GET(request: NextRequest) {
   try {
@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
     
     // Add authentication as per Prompt 2.B
     try {
-      const user = await getAuthUser(request)
+      const user = await getAuthUser()
       console.log('User authenticated:', user.username)
       if (!user) {
         return NextResponse.json(
@@ -30,7 +30,18 @@ export async function GET(request: NextRequest) {
     const width = searchParams.get('width')
     const length = searchParams.get('length')
 
+    // Handle legacy 'type' parameter for sink-families
+    const type = searchParams.get('type')
+    if (type === 'sink-families') {
+      const data = await configuratorService.getSinkFamilies()
+      return NextResponse.json({ success: true, data })
+    }
+
     switch (queryType) {
+      case 'sinkFamilies': {
+        const data = await configuratorService.getSinkFamilies()
+        return NextResponse.json({ success: true, data })
+      }
       case 'sinkModels': {
         const family = searchParams.get('family') || 'MDRD'
         const data = await configuratorService.getSinkModels(family)

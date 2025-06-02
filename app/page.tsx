@@ -4,11 +4,14 @@ import { useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Loader2 } from "lucide-react"
 
-import { useAuthStore } from "@/stores/authStore"
+import { useSession } from "next-auth/react"
 
 export default function HomePage() {
   const router = useRouter()
-  const { isAuthenticated, user, isLoading } = useAuthStore()
+  const { data: session, status } = useSession()
+  const isAuthenticated = status === 'authenticated'
+  const user = session?.user
+  const isLoading = status === 'loading'
 
   useEffect(() => {
     // Give a moment for auth state to hydrate from localStorage
@@ -21,7 +24,7 @@ export default function HomePage() {
     }, 100)
 
     return () => clearTimeout(timer)
-  }, [isAuthenticated, user, router])
+  }, [status, isAuthenticated, user, router])
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center">

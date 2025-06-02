@@ -1,15 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getAuthUser } from '@/lib/nextAuthUtils'
+import { getAuthUser } from '@/lib/auth'
 import notificationService from '@/src/services/notificationService'
 
 // GET /api/notifications - Fetch notifications for authenticated user
 export async function GET(request: NextRequest) {
   try {
-    const user = await getAuthUser(request)
+    const user = await getAuthUser()
     
     if (!user) {
       return NextResponse.json(
-        { error: 'Authentication required' },
+        { 
+          success: false, 
+          message: 'Authentication expired - please log in again',
+          requiresLogin: true 
+        },
         { status: 401 }
       )
     }
@@ -53,7 +57,7 @@ export async function GET(request: NextRequest) {
 // PATCH /api/notifications - Mark notifications as read
 export async function PATCH(request: NextRequest) {
   try {
-    const user = await getAuthUser(request)
+    const user = await getAuthUser()
     
     if (!user) {
       return NextResponse.json(

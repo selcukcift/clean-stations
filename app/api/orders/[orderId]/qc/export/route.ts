@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
-import { getAuthUser, checkUserRole } from '@/lib/nextAuthUtils';
+import { getAuthUser, checkUserRole } from '@/lib/auth';
 
 const prisma = new PrismaClient();
 
@@ -11,7 +11,7 @@ export async function GET(
 ) {
   const { orderId } = await params;
   try {
-    const user = await getAuthUser(request);
+    const user = await getAuthUser();
     if (!checkUserRole(user, ['QC_PERSON', 'PRODUCTION_COORDINATOR', 'ADMIN'])) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }

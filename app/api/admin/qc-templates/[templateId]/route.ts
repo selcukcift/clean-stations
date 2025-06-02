@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
-import { getAuthUser, checkUserRole } from '@/lib/nextAuthUtils';
+import { getAuthUser, checkUserRole } from '@/lib/auth';
 import { z } from 'zod';
 
 const prisma = new PrismaClient();
@@ -32,7 +32,7 @@ export async function GET(
 ) {
   const { templateId } = await params;
   try {
-    const user = await getAuthUser(request);
+    const user = await getAuthUser();
     if (!checkUserRole(user, ['ADMIN', 'PRODUCTION_COORDINATOR', 'QC_PERSON'])) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
@@ -67,7 +67,7 @@ export async function PUT(
 ) {
   const { templateId } = await params;
   try {
-    const user = await getAuthUser(request);
+    const user = await getAuthUser();
     if (!checkUserRole(user, ['ADMIN'])) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
@@ -159,7 +159,7 @@ export async function DELETE(
 ) {
   const { templateId } = await params;
   try {
-    const user = await getAuthUser(request);
+    const user = await getAuthUser();
     if (!checkUserRole(user, ['ADMIN'])) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }

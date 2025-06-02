@@ -8,16 +8,17 @@ datasource db {
 }
 
 model Part {
-  partId                 String              @id @unique @map("PartID")
+  partId                 String               @id @unique @map("PartID")
   name                   String
   manufacturerPartNumber String?
   type                   PartType
   status                 Status
   photoURL               String?
   technicalDrawingURL    String?
-  createdAt              DateTime            @default(now())
-  updatedAt              DateTime            @updatedAt
+  createdAt              DateTime             @default(now())
+  updatedAt              DateTime             @updatedAt
   assemblyComponents     AssemblyComponent[]
+  serviceOrderItems      ServiceOrderItem[]   @relation("PartServiceOrders")
 }
 
 model Assembly {
@@ -85,6 +86,7 @@ model User {
   createdOrders Order[]           @relation("OrderCreatedBy")
   historyLogs   OrderHistoryLog[] @relation("UserHistoryLogs")
   qcResults     OrderQcResult[]   @relation("UserQcResults")
+  serviceOrders ServiceOrder[]    @relation("UserServiceOrders")
 }
 
 model Order {
@@ -325,4 +327,39 @@ enum QcStatus {
   PASSED
   FAILED
   REQUIRES_REVIEW
+}
+
+model ServiceOrder {
+  id                    String              @id @default(cuid())
+  requestedById         String
+  requestTimestamp      DateTime            @default(now())
+  status                ServiceOrderStatus  @default(PENDING_APPROVAL)
+  notes                 String?
+  procurementNotes      String?
+  updatedAt             DateTime            @updatedAt
+  
+  // Relations
+  requestedBy           User                @relation("UserServiceOrders", fields: [requestedById], references: [id])
+  items                 ServiceOrderItem[]
+}
+
+model ServiceOrderItem {
+  id                    String        @id @default(cuid())
+  serviceOrderId        String
+  partId                String  
+  quantityRequested     Int
+  quantityApproved      Int?
+  notes                 String?
+  
+  // Relations
+  serviceOrder          ServiceOrder  @relation(fields: [serviceOrderId], references: [id], onDelete: Cascade)
+  part                  Part          @relation("PartServiceOrders", fields: [partId], references: [partId])
+}
+
+enum ServiceOrderStatus {
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+  ORDERED
+  RECEIVED
 }

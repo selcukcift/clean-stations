@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button"
 import { LogOut } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
-import { useAuthStore } from "@/stores/authStore"
+import { signOut } from "next-auth/react"
 
 interface LogoutButtonProps {
   variant?: "default" | "outline" | "ghost" | "link" | "destructive" | "secondary"
@@ -21,17 +21,23 @@ export function LogoutButton({
   showText = true,
   className = ""
 }: LogoutButtonProps) {
-  const router = useRouter()
   const { toast } = useToast()
-  const { logout } = useAuthStore()
 
-  const handleLogout = () => {
-    logout()
-    toast({
-      title: "Logged Out",
-      description: "You have been successfully logged out.",
-    })
-    router.push('/login')
+  const handleLogout = async () => {
+    try {
+      await signOut({ callbackUrl: '/login' })
+      toast({
+        title: "Logged Out",
+        description: "You have been successfully logged out.",
+      })
+    } catch (error) {
+      console.error('Logout error:', error)
+      toast({
+        variant: "destructive",
+        title: "Logout Error",
+        description: "There was an error logging you out.",
+      })
+    }
   }
 
   return (

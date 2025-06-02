@@ -3,8 +3,10 @@
  * Manages environment-specific settings and validation
  */
 
-// Load environment variables from .env file
-require('dotenv').config();
+// Load environment variables from .env files (with precedence)
+require('dotenv').config({ path: '.env.local' });
+require('dotenv').config({ path: '.env.development' });
+require('dotenv').config({ path: '.env' });
 
 // Environment types
 const ENVIRONMENTS = {
@@ -18,7 +20,7 @@ const NODE_ENV = process.env.NODE_ENV || ENVIRONMENTS.DEVELOPMENT;
 
 // Server configuration
 const SERVER_CONFIG = {
-  port: parseInt(process.env.PORT) || 3004,
+  port: parseInt(process.env.PORT) || 3001,
   host: process.env.HOST || 'localhost',
     // CORS settings
   corsOrigins: process.env.CORS_ORIGINS 

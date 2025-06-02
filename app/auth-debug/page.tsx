@@ -1,13 +1,15 @@
 "use client"
 
-import { useAuthStore } from "@/stores/authStore"
+import { useSession } from "next-auth/react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { nextJsApiClient } from '@/lib/api'
 import { useState } from "react"
 
 export default function AuthDebugPage() {
-  const { user, token, isAuthenticated } = useAuthStore()
+  const { data: session, status } = useSession()
+  const isAuthenticated = status === 'authenticated'
+  const user = session?.user
   const [testResult, setTestResult] = useState('')
   
   const testConfiguratorAPI = async () => {
@@ -31,8 +33,8 @@ export default function AuthDebugPage() {
             <h3 className="text-lg font-medium">Auth State:</h3>
             <div className="space-y-2 text-sm">
               <div>Is Authenticated: {isAuthenticated ? "✅ Yes" : "❌ No"}</div>
-              <div>Token: {token ? `✅ Present (${token.substring(0, 20)}...)` : "❌ Not found"}</div>
-              <div>User: {user ? `✅ ${user.fullName} (${user.role})` : "❌ Not found"}</div>
+              <div>Session Status: {status}</div>
+              <div>User: {user ? `✅ ${user.name} (${user.role})` : "❌ Not found"}</div>
             </div>
           </div>
           
@@ -47,9 +49,9 @@ export default function AuthDebugPage() {
           </div>
           
           <div>
-            <h3 className="text-lg font-medium">Raw Token Value:</h3>
+            <h3 className="text-lg font-medium">Session Data:</h3>
             <pre className="bg-gray-100 p-4 rounded text-xs overflow-auto">
-              {token || "No token"}
+              {JSON.stringify(session, null, 2) || "No session"}
             </pre>
           </div>
         </CardContent>

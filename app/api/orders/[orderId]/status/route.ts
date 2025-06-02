@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
 import { z } from 'zod'
-import { getAuthUser, canAccessOrder } from '@/lib/nextAuthUtils'
+import { getAuthUser, canAccessOrder } from '@/lib/auth'
 import notificationService from '@/src/services/notificationService'
 
 const prisma = new PrismaClient()
@@ -92,7 +92,14 @@ export async function PUT(
   const { orderId } = await params;
   try {
     // Authenticate user
-    const user = await getAuthUser(request)
+    const user = await getAuthUser()
+
+    if (!user) {
+      return NextResponse.json(
+        { success: false, message: 'Authentication required' },
+        { status: 401 }
+      )
+    }
 
     // Parse and validate request body
     const body = await request.json()

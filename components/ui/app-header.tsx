@@ -3,7 +3,7 @@
 import { User, Menu, X } from "lucide-react"
 import { useState } from "react"
 import { LogoutButton } from "@/components/ui/logout-button"
-import { useAuthStore } from "@/stores/authStore"
+import { useSession } from "next-auth/react"
 import { Button } from "@/components/ui/button"
 import { NotificationBell } from "@/components/notifications/NotificationBell"
 
@@ -18,7 +18,8 @@ export function AppHeader({
   showUserInfo = true,
   className = ""
 }: AppHeaderProps) {
-  const { user } = useAuthStore()
+  const { data: session } = useSession()
+  const user = session?.user
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   const toggleMobileMenu = () => setMobileMenuOpen(!mobileMenuOpen)
@@ -55,7 +56,7 @@ export function AppHeader({
                 
                 {/* User Info */}
                 <div className="text-right">
-                  <p className="text-sm font-medium text-slate-900">{user.fullName}</p>
+                  <p className="text-sm font-medium text-slate-900">{user.name}</p>
                   <p className="text-xs text-slate-500 capitalize">
                     {user.role.toLowerCase().replace('_', ' ')}
                   </p>
@@ -98,7 +99,7 @@ export function AppHeader({
                   </span>
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-slate-900">{user.fullName}</p>
+                  <p className="text-sm font-medium text-slate-900">{user.name}</p>
                   <p className="text-xs text-slate-500 capitalize">
                     {user.role.toLowerCase().replace('_', ' ')}
                   </p>

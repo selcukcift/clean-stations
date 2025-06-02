@@ -1,12 +1,11 @@
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios'
-import { useAuthStore } from '@/stores/authStore'
 
 // [Per Coding Prompt Chains v5 - Hybrid Backend]
 // Provide two distinct Axios clients for clarity
 
 // Plain Node.js backend (core data/auth)
 export const plainNodeApiClient = axios.create({
-  baseURL: 'http://localhost:3004/api',
+  baseURL: 'http://localhost:3001/api',
   timeout: 10000,
   headers: { 'Content-Type': 'application/json' },
 })
@@ -18,34 +17,25 @@ export const nextJsApiClient = axios.create({
   headers: { 'Content-Type': 'application/json' },
 })
 
-// Attach auth token to both clients
-const attachAuthInterceptor = (client: AxiosInstance) => {
-  client.interceptors.request.use(
-    (config) => {
-      const { token } = useAuthStore.getState()
-      if (token) {
-        config.headers.Authorization = `Bearer ${token}`
-      }
-      return config
-    },
-    (error) => Promise.reject(error)
-  )
+// Add response interceptor to handle auth errors
+const attachResponseInterceptor = (client: AxiosInstance) => {
   client.interceptors.response.use(
     (response) => response,
-    (error) => {
+    async (error) => {
       if (error.response?.status === 401) {
-        const { clearAuth } = useAuthStore.getState()
-        clearAuth()
+        // Let NextAuth handle the auth error
         if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
-          window.location.href = '/login'
+          // Import signOut dynamically to avoid SSR issues
+          const { signOut } = await import('next-auth/react')
+          signOut({ callbackUrl: '/login' })
         }
       }
       return Promise.reject(error)
     }
   )
 }
-attachAuthInterceptor(plainNodeApiClient)
-attachAuthInterceptor(nextJsApiClient)
+attachResponseInterceptor(plainNodeApiClient)
+attachResponseInterceptor(nextJsApiClient)
 
 // Generic API helper functions (default to nextJsApiClient for new features)
 export const api = {

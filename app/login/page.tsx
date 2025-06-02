@@ -12,8 +12,7 @@ import { Input } from "@/components/ui/input"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { useToast } from "@/hooks/use-toast"
-import { useAuthStore } from "@/stores/authStore"
-import { plainNodeApiClient } from "@/lib/api"
+import { signIn, getSession } from "next-auth/react"
 
 const loginSchema = z.object({
   username: z.string().min(1, "Username is required").min(3, "Username must be at least 3 characters"),
@@ -25,7 +24,6 @@ type LoginFormValues = z.infer<typeof loginSchema>
 export default function LoginPage() {
   const router = useRouter()
   const { toast } = useToast()
-  const { login, setLoading } = useAuthStore()
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const form = useForm<LoginFormValues>({
@@ -37,42 +35,46 @@ export default function LoginPage() {
   })
   const onSubmit = async (values: LoginFormValues) => {
     setIsSubmitting(true)
-    setLoading(true)
 
     try {
-      // Use plainNodeApiClient directly to call the backend
-      const response = await plainNodeApiClient.post('/auth/login', {
+      const result = await signIn('credentials', {
         username: values.username,
         password: values.password,
+        redirect: false,
       })
 
-      const { token, user } = response.data
+      if (result?.error) {
+        toast({
+          variant: "destructive",
+          title: "Login Failed",
+          description: "Invalid credentials. Please try again.",
+        })
+        return
+      }
 
-      // Store auth data in Zustand store
-      login(token, user)
+      // Get session to retrieve user info
+      const session = await getSession()
+      if (session?.user) {
+        toast({
+          variant: "success",
+          title: "Login Successful",
+          description: `Welcome back, ${session.user.name}!`,
+        })
 
-      toast({
-        variant: "success",
-        title: "Login Successful",
-        description: `Welcome back, ${user.fullName}!`,
-      })
-
-      // Redirect to dashboard or appropriate page based on role
-      router.push('/dashboard')
+        // Redirect to dashboard
+        router.push('/dashboard')
+      }
 
     } catch (error: any) {
-      const errorMessage = error.response?.data?.error || 'Login failed. Please try again.'
-      
       toast({
         variant: "destructive",
         title: "Login Failed",
-        description: errorMessage,
+        description: "An error occurred during login. Please try again.",
       })
 
       console.error('Login error:', error)
     } finally {
       setIsSubmitting(false)
-      setLoading(false)
     }
   }
 
