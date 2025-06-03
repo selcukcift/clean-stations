@@ -87,16 +87,16 @@ export function CustomerInfoStep() {
               <Label>Document Language *</Label>
               <RadioGroup
                 value={customerInfo.language}
-                onValueChange={(value) => updateCustomerInfo({ language: value })}
+                onValueChange={(value) => updateCustomerInfo({ language: value as 'EN' | 'FR' })}
                 className="flex flex-row space-x-6"
               >
                 <div className="flex items-center space-x-2">
                   <RadioGroupItem value="EN" id="en" />
-                  <Label htmlFor="en">English</Label>
+                  <Label htmlFor="en">EN</Label>
                 </div>
                 <div className="flex items-center space-x-2">
                   <RadioGroupItem value="FR" id="fr" />
-                  <Label htmlFor="fr">French</Label>
+                  <Label htmlFor="fr">FR</Label>
                 </div>
               </RadioGroup>
             </div>

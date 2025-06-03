@@ -7,7 +7,7 @@ export interface CustomerInfo {
   projectName: string
   salesPerson: string
   wantDate: Date | null
-  language: 'English' | 'Spanish' | 'French'
+  language: 'EN' | 'FR'
   notes: string
   poDocument?: File
 }
@@ -121,7 +121,7 @@ const initialCustomerInfo: CustomerInfo = {
   projectName: '',
   salesPerson: '',
   wantDate: null,
-  language: 'English',
+  language: 'EN',
   notes: ''
 }
 

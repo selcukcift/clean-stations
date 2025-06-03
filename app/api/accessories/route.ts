@@ -18,8 +18,15 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const categoryCode = searchParams.get('categoryCode')
     const featured = searchParams.get('featured')
+    const getCategories = searchParams.get('getCategories')
     const limit = parseInt(searchParams.get('limit') || '50')
     const offset = parseInt(searchParams.get('offset') || '0')
+
+    // Handle get categories request
+    if (getCategories === 'true') {
+      const categories = await accessoriesService.getAccessoryCategories()
+      return NextResponse.json({ success: true, categories })
+    }
 
     // Handle featured accessories request
     if (featured === 'true') {
@@ -28,14 +35,8 @@ export async function GET(request: NextRequest) {
     }
 
     // Handle category-specific accessories request
-    if (categoryCode && categoryCode !== '720.702') {
+    if (categoryCode) {
       const data = await accessoriesService.getAccessoriesByCategory(categoryCode)
-      return NextResponse.json({ success: true, data })
-    }
-
-    // Handle categories list request (when categoryCode = '720.702')
-    if (categoryCode === '720.702') {
-      const data = await accessoriesService.getAccessoryCategories()
       return NextResponse.json({ success: true, data })
     }
 

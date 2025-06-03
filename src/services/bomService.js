@@ -6,7 +6,8 @@ async function getAssemblyDetails(assemblyId) {
         include: {
             components: {
                 include: {
-                    part: true, // Include the actual Part record
+                    childPart: true, // Include the actual Part record
+                    childAssembly: true, // Include sub-assemblies
                 },
             },
         },
@@ -54,26 +55,38 @@ async function addItemToBOMRecursive(assemblyId, quantity, category, bomList, pr
 
     if (assembly.components && assembly.components.length > 0) {
         for (const componentLink of assembly.components) {
-            const part = componentLink.part; // This is the actual Part record
-            if (!part) {
-                console.warn(`Linked part with ID ${componentLink.partId} not found for assembly ${assembly.assemblyId}.`);
+            // Handle both childPart and childAssembly relationships
+            const part = componentLink.childPart;
+            const childAssembly = componentLink.childAssembly;
+            
+            if (!part && !childAssembly) {
+                console.warn(`No linked part or assembly found for component in assembly ${assembly.assemblyId}.`);
                 bomItem.components.push({
-                    id: `UNKNOWN_PART_${componentLink.partId}`,
-                    name: `Unknown Part: ${componentLink.partId}`,
+                    id: `UNKNOWN_COMPONENT_${componentLink.id}`,
+                    name: `Unknown Component`,
                     quantity: componentLink.quantity,
-                    type: 'UNKNOWN_PART_TYPE',
+                    type: 'UNKNOWN_TYPE',
                     components: [],
                     isPlaceholder: true,
                 });
                 continue;
             }
 
-            // Check if this part itself is an assembly that needs further expansion
-            // A part is considered a sub-assembly if its part.type suggests it OR if an Assembly record exists with assemblyId === part.partNumber
-            const subAssembly = await prisma.assembly.findUnique({ 
-                where: { assemblyId: part.partNumber },
-                include: { components: { include: { part: true } } } 
-            });
+            // If it's a direct child assembly
+            if (childAssembly) {
+                await addItemToBOMRecursive(
+                    childAssembly.assemblyId, 
+                    componentLink.quantity, 
+                    'SUB_ASSEMBLY', 
+                    bomItem.components, 
+                    new Set(processedAssemblies)
+                );
+            } else if (part) {
+                // Check if this part itself is an assembly that needs further expansion
+                const subAssembly = await prisma.assembly.findUnique({ 
+                    where: { assemblyId: part.partId },
+                    include: { components: { include: { childPart: true, childAssembly: true } } } 
+                });
 
             if (subAssembly) { // It's a sub-assembly
                 const subAssemblyBomItem = {
@@ -88,20 +101,20 @@ async function addItemToBOMRecursive(assemblyId, quantity, category, bomList, pr
                 // Pass componentLink.quantity as the multiplier for sub-components
                 if (subAssembly.components && subAssembly.components.length > 0) {
                     for (const subComponentLink of subAssembly.components) {
-                        const subPart = subComponentLink.part;
+                        const subPart = subComponentLink.childPart;
                         if (!subPart) continue;
                          // Check if this subPart is an assembly again
-                        const deeperSubAssembly = await prisma.assembly.findUnique({ where: { assemblyId: subPart.partNumber }});
+                        const deeperSubAssembly = await prisma.assembly.findUnique({ where: { assemblyId: subPart.partId }});
                         if (deeperSubAssembly) {
                             // If it's another level of assembly, call addItemToBOMRecursive
                             // For simplicity in this step, we'll add it as a component part.
                             // A more robust solution might involve deeper recursion here if parts can be many levels of assemblies.
                             // For now, we assume parts that are assemblies are expanded one level directly.
-                             await addItemToBOMRecursive(subPart.partNumber, subComponentLink.quantity, 'SUB_COMPONENT_ASSEMBLY', subAssemblyBomItem.components, new Set(processedAssemblies));
+                             await addItemToBOMRecursive(subPart.partId, subComponentLink.quantity, 'SUB_COMPONENT_ASSEMBLY', subAssemblyBomItem.components, new Set(processedAssemblies));
 
                         } else {
                              subAssemblyBomItem.components.push({
-                                id: subPart.partNumber,
+                                id: subPart.partId,
                                 name: subPart.name,
                                 quantity: subComponentLink.quantity,
                                 type: subPart.type,
@@ -114,13 +127,14 @@ async function addItemToBOMRecursive(assemblyId, quantity, category, bomList, pr
 
             } else { // It's a simple part
                 bomItem.components.push({
-                    id: part.partNumber, // User-facing part number
+                    id: part.partId, // User-facing part ID
                     name: part.name,
                     quantity: componentLink.quantity, // Quantity of this part within the assembly
                     type: part.type, // PartType
                     components: [], // Simple parts don't have further components in this context
                 });
             }
+            } // Close the `else if (part)` block
         }
     }
     bomList.push(bomItem);
@@ -145,7 +159,8 @@ async function generateBOMForOrder(orderData) {
 
         const {
             sinkModelId, 
-            legsTypeId,  
+            legsTypeId,
+            legTypeId,  
             feetTypeId,  
             pegboard, 
             pegboardTypeId, 
@@ -153,27 +168,29 @@ async function generateBOMForOrder(orderData) {
             basins, 
             faucetTypeId, 
             faucetQuantity,
+            faucets, // New array format
             sprayer, 
-            sprayerTypeIds, 
+            sprayerTypeIds,
+            sprayers, // New array format 
             controlBoxId,
-            // sinkLength might be part of a sinkBody object within config or a top-level prop
-            // Adjust based on actual structure passed from UI after configuratorService integration
-            sinkLength // Assuming sinkLength is available in config for now for body logic
+            // Use length or sinkLength for body assembly
+            length,
+            sinkLength
         } = config; 
 
         // 2. Sink Body Assembly
-        // This logic might be superseded if sinkModelId itself is the complete body assembly.
-        // For now, retaining length-based selection if specific sinkLength is provided.
+        // Use length (from UI) or sinkLength for body assembly selection
+        const actualLength = length || sinkLength;
         let sinkBodyAssemblyId;
-        if (sinkLength) { // Check if sinkLength is provided and valid
-            if (sinkLength >= 34 && sinkLength <= 60) sinkBodyAssemblyId = 'T2-BODY-48-60-HA';
-            else if (sinkLength >= 61 && sinkLength <= 72) sinkBodyAssemblyId = 'T2-BODY-61-72-HA';
-            else if (sinkLength >= 73 && sinkLength <= 120) sinkBodyAssemblyId = 'T2-BODY-73-120-HA';
+        if (actualLength) { // Check if length is provided and valid
+            if (actualLength >= 48 && actualLength <= 60) sinkBodyAssemblyId = 'T2-BODY-48-60-HA'; // T2-BODY-48-60-HA
+            else if (actualLength >= 61 && actualLength <= 72) sinkBodyAssemblyId = 'T2-BODY-61-72-HA'; // T2-BODY-61-72-HA
+            else if (actualLength >= 73 && actualLength <= 120) sinkBodyAssemblyId = 'T2-BODY-73-120-HA'; // T2-BODY-73-120-HA
             
             if (sinkBodyAssemblyId) {
                 await addItemToBOMRecursive(sinkBodyAssemblyId, 1, 'SINK_BODY', bom, new Set());
             } else {
-                console.warn(`No sink body assembly found for length: ${sinkLength}`);
+                console.warn(`No sink body assembly found for length: ${actualLength}`);
             }
         } else if (sinkModelId) {
             // Fallback or primary logic: if sinkModelId is intended to be the main assembly including the body.
@@ -184,9 +201,10 @@ async function generateBOMForOrder(orderData) {
             console.log(`Sink length not provided, relying on other components or sinkModelId: ${sinkModelId} if it includes body.`);
         }
 
-        // 3. Legs Kit
-        if (legsTypeId) {
-            await addItemToBOMRecursive(legsTypeId, 1, 'LEGS', bom, new Set());
+        // 3. Legs Kit (handle both legTypeId and legsTypeId)
+        const actualLegTypeId = legTypeId || legsTypeId;
+        if (actualLegTypeId) {
+            await addItemToBOMRecursive(actualLegTypeId, 1, 'LEGS', bom, new Set());
         }
 
         // 4. Feet Type
@@ -204,17 +222,17 @@ async function generateBOMForOrder(orderData) {
                 // Check if it's a custom part number pattern
                 if (pegboardSizePartNumber.startsWith('720.215.002 T2-ADW-PB-')) {
                     // Attempt to find it in the Part table
-                    let partDetails = await prisma.part.findUnique({ where: { partNumber: pegboardSizePartNumber } });
+                    let partDetails = await prisma.part.findUnique({ where: { partId: pegboardSizePartNumber } });
                     if (!partDetails) {
                         // If not in DB, add as a custom part placeholder
                         partDetails = {
-                            partNumber: pegboardSizePartNumber,
+                            partId: pegboardSizePartNumber,
                             name: `Custom Pegboard Panel ${pegboardSizePartNumber.substring('720.215.002 T2-ADW-PB-'.length)}`,
                             type: 'CUSTOM_PART_AUTOGEN' // Indicate it was auto-generated
                         };
                     }
                     bom.push({
-                        id: partDetails.partNumber,
+                        id: partDetails.partId,
                         name: partDetails.name,
                         quantity: 1,
                         category: 'PEGBOARD_PANEL',
@@ -238,16 +256,16 @@ async function generateBOMForOrder(orderData) {
                 }
                 if (basin.basinSizePartNumber) {
                     if (basin.basinSizePartNumber.startsWith('720.215.001 T2-ADW-BASIN-')) {
-                        let partDetails = await prisma.part.findUnique({ where: { partNumber: basin.basinSizePartNumber } });
+                        let partDetails = await prisma.part.findUnique({ where: { partId: basin.basinSizePartNumber } });
                         if (!partDetails) {
                             partDetails = {
-                                partNumber: basin.basinSizePartNumber,
+                                partId: basin.basinSizePartNumber,
                                 name: `Custom Basin ${basin.basinSizePartNumber.substring('720.215.001 T2-ADW-BASIN-'.length)}`,
                                 type: 'CUSTOM_PART_AUTOGEN'
                             };
                         }
                         bom.push({
-                            id: partDetails.partNumber,
+                            id: partDetails.partId,
                             name: partDetails.name,
                             quantity: 1,
                             category: 'BASIN_PANEL',
@@ -273,13 +291,29 @@ async function generateBOMForOrder(orderData) {
             await addItemToBOMRecursive(controlBoxId, 1, 'CONTROL_BOX', bom, new Set());
         }
 
-        // 8. Faucets
-        if (faucetTypeId) {
+        // 8. Faucets (handle both single and array format)
+        if (faucets && faucets.length > 0) {
+            // New array format
+            for (const faucet of faucets) {
+                if (faucet.faucetTypeId) {
+                    await addItemToBOMRecursive(faucet.faucetTypeId, 1, 'FAUCET_KIT', bom, new Set());
+                }
+            }
+        } else if (faucetTypeId) {
+            // Legacy single faucet format
             await addItemToBOMRecursive(faucetTypeId, faucetQuantity || 1, 'FAUCET_KIT', bom, new Set());
         }
 
-        // 9. Sprayers
-        if (sprayer && sprayerTypeIds && sprayerTypeIds.length > 0) {
+        // 9. Sprayers (handle both single and array format)
+        if (sprayers && sprayers.length > 0) {
+            // New array format
+            for (const sprayer of sprayers) {
+                if (sprayer.sprayerTypeId) {
+                    await addItemToBOMRecursive(sprayer.sprayerTypeId, 1, 'SPRAYER_KIT', bom, new Set());
+                }
+            }
+        } else if (sprayer && sprayerTypeIds && sprayerTypeIds.length > 0) {
+            // Legacy array of IDs format
             for (const sprayerId of sprayerTypeIds) {
                 await addItemToBOMRecursive(sprayerId, 1, 'SPRAYER_KIT', bom, new Set());
             }

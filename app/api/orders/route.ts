@@ -12,7 +12,7 @@ const CustomerInfoSchema = z.object({
   projectName: z.string().optional(),
   salesPerson: z.string().min(1, 'Sales Person is required'),
   wantDate: z.string().transform((str) => new Date(str)),
-  language: z.enum(['English', 'Spanish', 'French']),
+  language: z.enum(['EN', 'FR']),
   notes: z.string().optional()
 })
 
@@ -32,19 +32,31 @@ const SprayerConfigurationSchema = z.object({
   sprayerTypeIds: z.array(z.string()).optional()
 })
 
+const SprayerItemSchema = z.object({
+  id: z.string().optional(),
+  sprayerTypeId: z.string().optional(),
+  location: z.string().optional()
+})
+
 const SinkConfigurationSchema = z.object({
   sinkModelId: z.string(),
   sinkWidth: z.number().optional(),
   sinkLength: z.number().optional(),
+  width: z.number().optional(),
+  length: z.number().optional(),
   legsTypeId: z.string().optional(),
+  legTypeId: z.string().optional(),
   feetTypeId: z.string().optional(),
   pegboard: z.boolean().optional(),
   pegboardTypeId: z.string().optional(),
   pegboardSizePartNumber: z.string().optional(),
-  workFlowDirection: z.enum(['Left', 'Right']),
-  basins: z.array(BasinConfigurationSchema),
-  faucet: FaucetConfigurationSchema,
-  sprayer: SprayerConfigurationSchema,
+  workFlowDirection: z.enum(['Left', 'Right']).optional(),
+  workflowDirection: z.enum(['LEFT_TO_RIGHT', 'RIGHT_TO_LEFT']).optional(),
+  basins: z.array(BasinConfigurationSchema).default([]),
+  faucet: FaucetConfigurationSchema.optional(),
+  faucets: z.array(FaucetConfigurationSchema).optional(),
+  sprayer: SprayerConfigurationSchema.optional(),
+  sprayers: z.array(SprayerItemSchema).optional(),
   controlBoxId: z.string().optional()
 })
 
@@ -169,7 +181,21 @@ export async function POST(request: NextRequest) {
     // Create faucet configurations
     const faucetConfigs = []
     for (const [buildNumber, config] of Object.entries(configurations)) {
-      if (config.faucet?.faucetTypeId) {
+      // Handle new faucets array format
+      if (config.faucets && config.faucets.length > 0) {
+        for (const faucet of config.faucets) {
+          if (faucet.faucetTypeId) {
+            faucetConfigs.push({
+              buildNumber,
+              orderId: order.id,
+              faucetTypeId: faucet.faucetTypeId,
+              faucetQuantity: 1,
+              faucetPlacement: faucet.placement || 'Center'
+            })
+          }
+        }
+      } else if (config.faucet?.faucetTypeId) {
+        // Handle legacy single faucet format
         faucetConfigs.push({
           buildNumber,
           orderId: order.id,
@@ -189,7 +215,24 @@ export async function POST(request: NextRequest) {
     // Create sprayer configurations
     const sprayerConfigs = []
     for (const [buildNumber, config] of Object.entries(configurations)) {
-      if (config.sprayer) {
+      // Handle new sprayers array format
+      if (config.sprayers && config.sprayers.length > 0) {
+        const sprayerTypeIds = config.sprayers
+          .map((s: any) => s.sprayerTypeId)
+          .filter((id: string) => id)
+        const sprayerLocations = config.sprayers
+          .map((s: any) => s.location || 'Center')
+        
+        sprayerConfigs.push({
+          buildNumber,
+          orderId: order.id,
+          hasSpray: true,
+          sprayerTypeIds,
+          sprayerQuantity: sprayerTypeIds.length,
+          sprayerLocations
+        })
+      } else if (config.sprayer) {
+        // Handle legacy single sprayer format
         sprayerConfigs.push({
           buildNumber,
           orderId: order.id,

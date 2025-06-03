@@ -333,6 +333,75 @@ export function ConfigurationStep() {
     updateConfig({ basins: currentBasins })
   }
 
+  // Auto-fill function for testing
+  const autoFillConfiguration = () => {
+    if (!sinkModels.length || !legTypes.length || !feetTypes.length || !basinTypes.length) {
+      toast({
+        title: "Please wait",
+        description: "Configuration options are still loading",
+        variant: "destructive"
+      })
+      return
+    }
+
+    // Random selections
+    const randomSinkModel = sinkModels[Math.floor(Math.random() * sinkModels.length)]
+    const randomLegType = legTypes.filter(l => l.exists)[Math.floor(Math.random() * legTypes.filter(l => l.exists).length)]
+    const randomFeetType = feetTypes.filter(f => f.exists)[Math.floor(Math.random() * feetTypes.filter(f => f.exists).length)]
+    const randomBasinType = basinTypes[Math.floor(Math.random() * basinTypes.length)]
+    
+    // Random dimensions
+    const randomWidth = 48 + Math.floor(Math.random() * 25) // 48-72
+    const randomLength = 48 + Math.floor(Math.random() * 73) // 48-120
+    
+    // Create random basins
+    const maxBasins = randomSinkModel.basinCount
+    const randomBasins = Array.from({ length: maxBasins }, (_, index) => ({
+      id: `basin-${Date.now()}-${index}`,
+      basinType: basinTypes[Math.floor(Math.random() * basinTypes.length)].id,
+      basinTypeId: basinTypes[Math.floor(Math.random() * basinTypes.length)].kitAssemblyId,
+      basinSize: basinSizeOptions?.standardSizes[Math.floor(Math.random() * basinSizeOptions.standardSizes.length)]?.assemblyId || '',
+      basinSizePartNumber: basinSizeOptions?.standardSizes[Math.floor(Math.random() * basinSizeOptions.standardSizes.length)]?.assemblyId || '',
+      addons: Math.random() > 0.5 ? ['P_TRAP'] : [],
+      addonIds: Math.random() > 0.5 ? ['T2-OA-MS-1026'] : []
+    }))
+
+    // Create random faucets
+    const randomFaucets = faucetTypes.length > 0 ? [{
+      id: `faucet-${Date.now()}`,
+      faucetTypeId: faucetTypes[Math.floor(Math.random() * faucetTypes.length)].assemblyId,
+      placement: ['CENTER', 'LEFT', 'RIGHT'][Math.floor(Math.random() * 3)]
+    }] : []
+
+    // Create random sprayers (optional)
+    const randomSprayers = sprayerTypes.length > 0 && Math.random() > 0.5 ? [{
+      id: `sprayer-${Date.now()}`,
+      sprayerTypeId: sprayerTypes[Math.floor(Math.random() * sprayerTypes.length)].assemblyId,
+      location: ['LEFT_SIDE', 'RIGHT_SIDE'][Math.floor(Math.random() * 2)]
+    }] : []
+
+    // Apply all random settings
+    updateConfig({
+      sinkModelId: randomSinkModel.id,
+      width: randomWidth,
+      length: randomLength,
+      legTypeId: randomLegType.assemblyId,
+      feetTypeId: randomFeetType.assemblyId,
+      workflowDirection: ['LEFT_TO_RIGHT', 'RIGHT_TO_LEFT'][Math.floor(Math.random() * 2)],
+      basins: randomBasins,
+      faucets: randomFaucets,
+      sprayers: randomSprayers,
+      hasPegboard: Math.random() > 0.5,
+      pegboardType: Math.random() > 0.5 ? 'STANDARD' : 'COLORSAFE_PLUS'
+    })
+
+    toast({
+      title: "Auto-filled!",
+      description: `Configuration auto-filled for ${currentBuildNumber}`,
+      duration: 2000
+    })
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -362,29 +431,41 @@ export function ConfigurationStep() {
           </p>
         </div>
         
-        {buildNumbers.length > 1 && (
-          <div className="flex items-center space-x-2">
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={previousSink}
-              disabled={currentBuildIndex === 0}
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </Button>
-            <Badge variant="outline" className="px-3 py-1">
-              {currentBuildIndex + 1} of {buildNumbers.length}
-            </Badge>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={nextSink}
-              disabled={currentBuildIndex === buildNumbers.length - 1}
-            >
-              <ChevronRight className="w-4 h-4" />
-            </Button>
-          </div>
-        )}
+        <div className="flex items-center space-x-2">
+          {/* Auto-fill button for testing */}
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={autoFillConfiguration}
+            className="bg-orange-50 border-orange-200 text-orange-700 hover:bg-orange-100"
+          >
+            🎲 Auto-Fill for Testing
+          </Button>
+          
+          {buildNumbers.length > 1 && (
+            <>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={previousSink}
+                disabled={currentBuildIndex === 0}
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </Button>
+              <Badge variant="outline" className="px-3 py-1">
+                {currentBuildIndex + 1} of {buildNumbers.length}
+              </Badge>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={nextSink}
+                disabled={currentBuildIndex === buildNumbers.length - 1}
+              >
+                <ChevronRight className="w-4 h-4" />
+              </Button>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Current Build Number */}
@@ -408,14 +489,32 @@ export function ConfigurationStep() {
 
       <Tabs value={currentTab} onValueChange={setCurrentTab} className="w-full">
         <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="sink-body">Sink Body</TabsTrigger>
-          <TabsTrigger value="basins" disabled={!currentConfig.sinkModelId}>Basins</TabsTrigger>
-          <TabsTrigger value="faucets" disabled={!currentConfig.basins || currentConfig.basins.length === 0}>Faucets & Sprayers</TabsTrigger>
-          <TabsTrigger value="pegboard" disabled={!currentConfig.width || !currentConfig.length}>Pegboard</TabsTrigger>
+          <TabsTrigger value="sink-body" className="flex items-center gap-2">
+            {(currentConfig.sinkModelId && currentConfig.width && currentConfig.length && currentConfig.legTypeId && currentConfig.feetTypeId) ? 
+              <span className="text-green-600">✓</span> : <span className="text-slate-400">1</span>
+            }
+            Sink Body
+          </TabsTrigger>
+          <TabsTrigger value="basins" disabled={!currentConfig.sinkModelId} className="flex items-center gap-2">
+            {(currentConfig.basins && currentConfig.basins.length > 0 && currentConfig.basins.every((b: any) => b.basinType && b.basinSize)) ? 
+              <span className="text-green-600">✓</span> : <span className="text-slate-400">2</span>
+            }
+            Basins
+          </TabsTrigger>
+          <TabsTrigger value="faucets" disabled={!currentConfig.basins || currentConfig.basins.length === 0} className="flex items-center gap-2">
+            {(currentConfig.faucets && currentConfig.faucets.length > 0) ? 
+              <span className="text-green-600">✓</span> : <span className="text-slate-400">3</span>
+            }
+            Faucets & Sprayers
+          </TabsTrigger>
+          <TabsTrigger value="pegboard" disabled={!currentConfig.width || !currentConfig.length} className="flex items-center gap-2">
+            <span className="text-slate-400">4</span>
+            Pegboard
+          </TabsTrigger>
         </TabsList>
 
-        {/* Tab Navigation Helper */}
-        <div className="mt-4 flex justify-between">
+        {/* Enhanced Tab Navigation Helper */}
+        <div className="mt-4 flex justify-between items-center">
           <Button
             variant="outline"
             size="sm"
@@ -427,8 +526,26 @@ export function ConfigurationStep() {
             disabled={currentTab === 'sink-body'}
           >
             <ChevronLeft className="w-4 h-4 mr-2" />
-            Previous Tab
+            Previous
           </Button>
+
+          {/* Progress Indicator */}
+          <div className="flex items-center gap-2">
+            <div className="text-sm text-slate-600">
+              Step {['sink-body', 'basins', 'faucets', 'pegboard'].indexOf(currentTab) + 1} of 4
+            </div>
+            <div className="flex gap-1">
+              {['sink-body', 'basins', 'faucets', 'pegboard'].map((tab, index) => (
+                <div
+                  key={tab}
+                  className={`w-2 h-2 rounded-full ${
+                    tab === currentTab ? 'bg-blue-600' : 
+                    ['sink-body', 'basins', 'faucets', 'pegboard'].indexOf(currentTab) > index ? 'bg-green-500' : 'bg-slate-300'
+                  }`}
+                />
+              ))}
+            </div>
+          </div>
           
           <Button
             variant="outline"
@@ -450,7 +567,7 @@ export function ConfigurationStep() {
               (currentTab === 'faucets' && (!currentConfig.width || !currentConfig.length))
             }
           >
-            Next Tab
+            Next
             <ChevronRight className="w-4 h-4 ml-2" />
           </Button>
         </div>
@@ -471,8 +588,7 @@ export function ConfigurationStep() {
                     value={currentConfig.sinkModelId} 
                     onValueChange={(value) => {
                       updateConfig({ sinkModelId: value })
-                      // Auto-advance to next tab when model is selected
-                      setTimeout(() => setCurrentTab('basins'), 500)
+                      // Don't auto-advance - let user control flow
                     }}
                   >
                     <SelectTrigger>
@@ -527,12 +643,7 @@ export function ConfigurationStep() {
                       onChange={(e) => {
                         const length = parseInt(e.target.value) || 0
                         updateConfig({ length })
-                        // Auto-enable pegboard tab when dimensions are set
-                        if (length > 0 && currentConfig.width && currentConfig.width > 0) {
-                          setTimeout(() => {
-                            if (currentTab === 'sink-body') setCurrentTab('basins')
-                          }, 500)
-                        }
+                        // Don't auto-advance tabs
                       }}
                       placeholder="e.g., 60"
                       min="48"
@@ -680,7 +791,13 @@ export function ConfigurationStep() {
                     <Label>Basin Type *</Label>
                     <Select 
                       value={basin.basinType} 
-                      onValueChange={(value) => updateBasin(index, { basinType: value })}
+                      onValueChange={(value) => {
+                        const selectedType = basinTypes.find(t => t.id === value)
+                        updateBasin(index, { 
+                          basinType: value,
+                          basinTypeId: selectedType?.kitAssemblyId 
+                        })
+                      }}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Select basin type" />
@@ -700,7 +817,19 @@ export function ConfigurationStep() {
                     <Label>Basin Size *</Label>
                     <Select 
                       value={basin.basinSize} 
-                      onValueChange={(value) => updateBasin(index, { basinSize: value })}
+                      onValueChange={(value) => {
+                        if (value === 'CUSTOM') {
+                          updateBasin(index, { 
+                            basinSize: value,
+                            basinSizePartNumber: null 
+                          })
+                        } else {
+                          updateBasin(index, { 
+                            basinSize: value,
+                            basinSizePartNumber: value // The value is already the assemblyId
+                          })
+                        }
+                      }}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Select basin size" />
@@ -726,7 +855,15 @@ export function ConfigurationStep() {
                         type="number"
                         placeholder="20"
                         value={basin.customWidth || ''}
-                        onChange={(e) => updateBasin(index, { customWidth: e.target.value })}
+                        onChange={(e) => {
+                          const width = e.target.value
+                          updateBasin(index, { customWidth: width })
+                          // Generate custom part number if all dimensions are filled
+                          if (width && basin.customLength && basin.customDepth) {
+                            const partNumber = `720.215.001 T2-ADW-BASIN-${width}x${basin.customLength}x${basin.customDepth}`
+                            updateBasin(index, { basinSizePartNumber: partNumber })
+                          }
+                        }}
                       />
                     </div>
                     <div className="space-y-2">
@@ -735,7 +872,15 @@ export function ConfigurationStep() {
                         type="number"
                         placeholder="20"
                         value={basin.customLength || ''}
-                        onChange={(e) => updateBasin(index, { customLength: e.target.value })}
+                        onChange={(e) => {
+                          const length = e.target.value
+                          updateBasin(index, { customLength: length })
+                          // Generate custom part number if all dimensions are filled
+                          if (basin.customWidth && length && basin.customDepth) {
+                            const partNumber = `720.215.001 T2-ADW-BASIN-${basin.customWidth}x${length}x${basin.customDepth}`
+                            updateBasin(index, { basinSizePartNumber: partNumber })
+                          }
+                        }}
                       />
                     </div>
                     <div className="space-y-2">
@@ -744,7 +889,15 @@ export function ConfigurationStep() {
                         type="number"
                         placeholder="8"
                         value={basin.customDepth || ''}
-                        onChange={(e) => updateBasin(index, { customDepth: e.target.value })}
+                        onChange={(e) => {
+                          const depth = e.target.value
+                          updateBasin(index, { customDepth: depth })
+                          // Generate custom part number if all dimensions are filled
+                          if (basin.customWidth && basin.customLength && depth) {
+                            const partNumber = `720.215.001 T2-ADW-BASIN-${basin.customWidth}x${basin.customLength}x${depth}`
+                            updateBasin(index, { basinSizePartNumber: partNumber })
+                          }
+                        }}
                       />
                     </div>
                   </div>
@@ -760,10 +913,14 @@ export function ConfigurationStep() {
                         checked={basin.addons?.includes('P_TRAP') || false}
                         onCheckedChange={(checked) => {
                           const currentAddons = basin.addons || []
+                          const addonIds = basin.addonIds || []
                           const updatedAddons = checked 
                             ? [...currentAddons, 'P_TRAP']
                             : currentAddons.filter((addon: string) => addon !== 'P_TRAP')
-                          updateBasin(index, { addons: updatedAddons })
+                          const updatedAddonIds = checked
+                            ? [...addonIds, 'T2-OA-MS-1026'] // P-TRAP assembly ID
+                            : addonIds.filter((id: string) => id !== 'T2-OA-MS-1026')
+                          updateBasin(index, { addons: updatedAddons, addonIds: updatedAddonIds })
                         }}
                       />
                       <Label htmlFor={`ptrap-${index}`}>P-TRAP Disinfection Drain Unit</Label>
@@ -774,10 +931,18 @@ export function ConfigurationStep() {
                         checked={basin.addons?.includes('BASIN_LIGHT') || false}
                         onCheckedChange={(checked) => {
                           const currentAddons = basin.addons || []
+                          const addonIds = basin.addonIds || []
                           const updatedAddons = checked 
                             ? [...currentAddons, 'BASIN_LIGHT']
                             : currentAddons.filter((addon: string) => addon !== 'BASIN_LIGHT')
-                          updateBasin(index, { addons: updatedAddons })
+                          
+                          // Choose basin light ID based on basin type
+                          const lightId = basin.basinType === 'E_DRAIN' ? 'T2-OA-BASIN-LIGHT-EDR-KIT' : 'T2-OA-BASIN-LIGHT-ESK-KIT'
+                          const updatedAddonIds = checked
+                            ? [...addonIds.filter((id: string) => id !== 'T2-OA-BASIN-LIGHT-EDR-KIT' && id !== 'T2-OA-BASIN-LIGHT-ESK-KIT'), lightId]
+                            : addonIds.filter((id: string) => id !== 'T2-OA-BASIN-LIGHT-EDR-KIT' && id !== 'T2-OA-BASIN-LIGHT-ESK-KIT')
+                          
+                          updateBasin(index, { addons: updatedAddons, addonIds: updatedAddonIds })
                         }}
                       />
                       <Label htmlFor={`light-${index}`}>Basin Light Kit</Label>

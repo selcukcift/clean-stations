@@ -57,18 +57,18 @@ async function getSinkModels(family) {
  * @returns {Promise<Object>} Matching sink body assembly
  */
 async function getSinkBodyAssembly(length) {
-    // Business logic from sink configuration:
-    // 48-60": 709.82 T2-BODY-48-60-HA
-    // 61-72": 709.83 T2-BODY-61-72-HA
-    // 73-120": 709.84 T2-BODY-73-120-HA
+    // Business logic from sink configuration and assemblies.json:
+    // 48-60": T2-BODY-48-60-HA
+    // 61-72": T2-BODY-61-72-HA
+    // 73-120": T2-BODY-73-120-HA
     
     let assemblyId;
     if (length >= 48 && length <= 60) {
-        assemblyId = '709.82';
+        assemblyId = 'T2-BODY-48-60-HA';
     } else if (length >= 61 && length <= 72) {
-        assemblyId = '709.83';
+        assemblyId = 'T2-BODY-61-72-HA';
     } else if (length >= 73 && length <= 120) {
-        assemblyId = '709.84';
+        assemblyId = 'T2-BODY-73-120-HA';
     }
     
     if (assemblyId) {
@@ -224,19 +224,19 @@ async function getBasinTypeOptions() {
         { 
             id: 'E_SINK', 
             name: 'E-Sink', 
-            kitAssemblyId: '713.109',
+            kitAssemblyId: 'T2-BSN-ESK-KIT',
             kitName: 'T2-BSN-ESK-KIT'
         },
         { 
             id: 'E_SINK_DI', 
             name: 'E-Sink DI', 
-            kitAssemblyId: '713.108',
+            kitAssemblyId: 'T2-BSN-ESK-DI-KIT',
             kitName: 'T2-BSN-ESK-DI-KIT'
         },
         { 
             id: 'E_DRAIN', 
             name: 'E-Drain', 
-            kitAssemblyId: '713.107',
+            kitAssemblyId: 'T2-BSN-EDR-KIT',
             kitName: 'T2-BSN-EDR-KIT'
         }
     ];
@@ -282,9 +282,9 @@ async function getBasinAddonOptions(basinType) {
     
     // P-TRAP is available for all basin types
     const pTrapOption = {
-        assemblyId: '706.65',
+        assemblyId: 'T2-OA-MS-1026',
         name: 'T2-OA-MS-1026',
-        displayName: 'P-TRAP DISINFECTION DRAIN UNIT',
+        displayName: 'ST24 P-TRAP DISINFECTION DRAIN UNIT',
         applicableToAll: true
     };
     addons.push(pTrapOption);
@@ -293,14 +293,14 @@ async function getBasinAddonOptions(basinType) {
     let basinLightOption = null;
     if (basinType === 'E_DRAIN') {
         basinLightOption = {
-            assemblyId: '706.67',
+            assemblyId: 'T2-OA-BASIN-LIGHT-EDR-KIT',
             name: 'T2-OA-BASIN-LIGHT-EDR-KIT',
             displayName: 'Basin Light Kit (E-Drain)',
             basinType: 'E_DRAIN'
         };
     } else if (basinType === 'E_SINK' || basinType === 'E_SINK_DI') {
         basinLightOption = {
-            assemblyId: '706.68',
+            assemblyId: 'T2-OA-BASIN-LIGHT-ESK-KIT',
             name: 'T2-OA-BASIN-LIGHT-ESK-KIT',
             displayName: 'Basin Light Kit (E-Sink)',
             basinType: 'E_SINK'
@@ -322,21 +322,21 @@ async function getBasinAddonOptions(basinType) {
 async function getFaucetTypeOptions(basinType) {
     const faucetTypes = [
         {
-            assemblyId: '706.58',
+            assemblyId: 'T2-OA-STD-FAUCET-WB-KIT',
             name: 'T2-OA-STD-FAUCET-WB-KIT',
-            displayName: '10" WRIST BLADE SWING SPOUT WALL MOUNTED FAUCET KIT',
+            displayName: '10" WRIST BLADE, SWING SPOUT, WALL MOUNTED FAUCET KIT',
             type: 'WRIST_BLADE'
         },
         {
-            assemblyId: '706.59',
+            assemblyId: 'T2-OA-PRE-RINSE-FAUCET-KIT',
             name: 'T2-OA-PRE-RINSE-FAUCET-KIT',
             displayName: 'PRE-RINSE OVERHEAD SPRAY UNIT KIT',
             type: 'PRE_RINSE'
         },
         {
-            assemblyId: '706.60',
+            assemblyId: 'T2-OA-DI-GOOSENECK-FAUCET-KIT',
             name: 'T2-OA-DI-GOOSENECK-FAUCET-KIT',
-            displayName: 'GOOSENECK TREATED WATER FAUCET KIT PVC',
+            displayName: 'GOOSENECK TREATED WATER FAUCET KIT, PVC',
             type: 'GOOSENECK_DI'
         }
     ];
@@ -358,25 +358,25 @@ async function getFaucetTypeOptions(basinType) {
 async function getSprayerTypeOptions() {
     return [
         {
-            assemblyId: '706.61',
+            assemblyId: 'T2-OA-WATERGUN-TURRET-KIT',
             name: 'T2-OA-WATERGUN-TURRET-KIT',
-            displayName: 'DI WATER GUN KIT & TURRET',
+            displayName: 'WATER GUN KIT & TURRET, TREATED WATER COMPATIBLE',
             type: 'WATER_TURRET'
         },
         {
-            assemblyId: '706.62',
+            assemblyId: 'T2-OA-WATERGUN-ROSETTE-KIT',
             name: 'T2-OA-WATERGUN-ROSETTE-KIT',
-            displayName: 'DI WATER GUN KIT & ROSETTE',
+            displayName: 'WATER GUN KIT & ROSETTE, TREATED WATER COMPATIBLE',
             type: 'WATER_ROSETTE'
         },
         {
-            assemblyId: '706.63',
+            assemblyId: 'T2-OA-AIRGUN-TURRET-KIT',
             name: 'T2-OA-AIRGUN-TURRET-KIT',
             displayName: 'AIR GUN KIT & TURRET',
             type: 'AIR_TURRET'
         },
         {
-            assemblyId: '706.64',
+            assemblyId: 'T2-OA-AIRGUN-ROSETTE-KIT',
             name: 'T2-OA-AIRGUN-ROSETTE-KIT',
             displayName: 'AIR GUN KIT & ROSETTE',
             type: 'AIR_ROSETTE'

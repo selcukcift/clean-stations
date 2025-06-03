@@ -51,7 +51,7 @@ const OrderUpdateSchema = z.object({
     projectName: z.string().optional(),
     salesPerson: z.string(),
     wantDate: z.string().nullable(),
-    language: z.enum(['EN', 'FR', 'SP']),
+    language: z.enum(['EN', 'FR']),
     notes: z.string().optional()
   }),
   sinkSelection: z.object({

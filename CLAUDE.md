@@ -207,3 +207,5 @@ Several files contain legacy frontend logic preserved for reference:
 - `accessories.js` - Accessories management
 - `bom-generator.js` - BOM generation
 - `index.html`, `styles.css` - Legacy UI
+
+<!-- Revision updated: Updated deployment and instructions on 2023-11-01 -->

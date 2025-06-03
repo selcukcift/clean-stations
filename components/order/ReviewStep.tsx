@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { useOrderCreateStore, SelectedAccessory } from "@/stores/orderCreateStore"
+import { DetailedReviewSection } from "./DetailedReviewSection"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
@@ -17,7 +18,11 @@ import {
   Settings, 
   ShoppingCart,
   Loader2,
-  AlertCircle
+  AlertCircle,
+  ChevronRight,
+  ChevronDown,
+  Wrench,
+  Box
 } from "lucide-react"
 import { nextJsApiClient } from '@/lib/api'
 
@@ -31,6 +36,82 @@ interface OrderSubmitResponse {
 interface ReviewStepProps {
   isEditMode?: boolean
   orderId?: string
+}
+
+// Recursive component to display BOM items with their children
+function BOMItemDisplay({ item, level = 0 }: { item: any; level: number }) {
+  const [isExpanded, setIsExpanded] = useState(level < 2) // Auto-expand first 2 levels
+  const hasChildren = item.components && item.components.length > 0
+  const indent = level * 24 // 24px indent per level
+
+  return (
+    <div>
+      <div 
+        className={`flex items-center justify-between p-2 rounded text-sm hover:bg-slate-100 transition-colors ${
+          level === 0 ? 'bg-slate-50 border border-slate-200' : 'bg-white'
+        }`}
+        style={{ marginLeft: `${indent}px` }}
+      >
+        <div className="flex items-center flex-1 gap-2">
+          {hasChildren && (
+            <button
+              onClick={() => setIsExpanded(!isExpanded)}
+              className="p-0.5 hover:bg-slate-200 rounded"
+            >
+              {isExpanded ? (
+                <ChevronDown className="w-4 h-4 text-slate-600" />
+              ) : (
+                <ChevronRight className="w-4 h-4 text-slate-600" />
+              )}
+            </button>
+          )}
+          {!hasChildren && level > 0 && (
+            <div className="w-5" /> // Spacer for alignment
+          )}
+          
+          <div className="flex items-center gap-2">
+            {level === 0 ? (
+              <Package className="w-4 h-4 text-slate-600" />
+            ) : item.type === 'PART' ? (
+              <Wrench className="w-4 h-4 text-slate-500" />
+            ) : (
+              <Box className="w-4 h-4 text-slate-500" />
+            )}
+            <div>
+              <div className="font-medium">{item.name}</div>
+              <div className="text-xs text-muted-foreground">
+                ID: {item.id} | Type: {item.type || item.category}
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div className="flex items-center gap-2">
+          <Badge variant={level === 0 ? "secondary" : "outline"} className="text-xs">
+            ×{item.quantity}
+          </Badge>
+          {item.isCustom && (
+            <Badge variant="outline" className="text-xs">Custom</Badge>
+          )}
+          {item.isPlaceholder && (
+            <Badge variant="destructive" className="text-xs">Missing</Badge>
+          )}
+        </div>
+      </div>
+      
+      {hasChildren && isExpanded && (
+        <div className="mt-1">
+          {item.components.map((child: any, index: number) => (
+            <BOMItemDisplay 
+              key={`${child.id}-${index}`} 
+              item={child} 
+              level={level + 1} 
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  )
 }
 
 export function ReviewStep({ isEditMode = false, orderId }: ReviewStepProps) {
@@ -192,244 +273,65 @@ export function ReviewStep({ isEditMode = false, orderId }: ReviewStepProps) {
 
   return (
     <div className="space-y-6">
-      <div className="text-center space-y-2">
-        <h2 className="text-2xl font-bold">Review Your Order</h2>
-        <p className="text-muted-foreground">
-          Please review all details before submitting your order
-        </p>
-      </div>
-
-      <ScrollArea className="h-[600px] pr-4">
+      <ScrollArea className="h-[700px] pr-4">
         <div className="space-y-6">
-          {/* Customer Information */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <User className="h-5 w-5" />
-                Customer Information
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <span className="text-sm font-medium text-muted-foreground">PO Number</span>
-                  <p className="font-medium">{customerInfo.poNumber}</p>
-                </div>
-                <div>
-                  <span className="text-sm font-medium text-muted-foreground">Sales Person</span>
-                  <p className="font-medium">{customerInfo.salesPerson}</p>
-                </div>
-                <div>
-                  <span className="text-sm font-medium text-muted-foreground">Customer Name</span>
-                  <p className="font-medium">{customerInfo.customerName}</p>
-                </div>
-                <div>
-                  <span className="text-sm font-medium text-muted-foreground">Delivery Date</span>
-                  <p className="font-medium">{formatDate(customerInfo.wantDate)}</p>
-                </div>
-              </div>
-              {customerInfo.projectName && (
-                <div>
-                  <span className="text-sm font-medium text-muted-foreground">Project Name</span>
-                  <p className="font-medium">{customerInfo.projectName}</p>
-                </div>
-              )}
-              <div>
-                <span className="text-sm font-medium text-muted-foreground">Language</span>
-                <p className="font-medium">{customerInfo.language}</p>
-              </div>
-              {customerInfo.notes && (
-                <div>
-                  <span className="text-sm font-medium text-muted-foreground">Notes</span>
-                  <p className="font-medium">{customerInfo.notes}</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          {/* Use the new detailed review section */}
+          <DetailedReviewSection 
+            customerInfo={customerInfo}
+            sinkSelection={sinkSelection}
+            configurations={configurations}
+            accessories={accessories}
+          />
 
-          {/* Order Summary */}
+          {/* BOM Preview Section */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Package className="h-5 w-5" />
-                Order Summary
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-3 gap-4 text-center">
-                <div>
-                  <p className="text-2xl font-bold text-primary">{getTotalSinkCount()}</p>
-                  <p className="text-sm text-muted-foreground">Total Sinks</p>
-                </div>
-                <div>
-                  <p className="text-2xl font-bold text-primary">{sinkSelection.sinkModelId || 'MDRD'}</p>
-                  <p className="text-sm text-muted-foreground">Sink Model</p>
-                </div>
-                <div>
-                  <p className="text-2xl font-bold text-primary">{getAccessoryCount()}</p>
-                  <p className="text-sm text-muted-foreground">Accessories</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Build Numbers */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Settings className="h-5 w-5" />
-                Build Numbers & Configurations
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {sinkSelection.buildNumbers.map((buildNumber, index) => {
-                const config = configurations[buildNumber]
-                const buildAccessories = accessories[buildNumber] || []
-                
-                return (
-                  <div key={buildNumber} className="border rounded-lg p-4 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <h4 className="font-semibold">Build #{buildNumber}</h4>
-                      <Badge variant="outline">Sink {index + 1}</Badge>
-                    </div>
-                    
-                    {config && (
-                      <div className="grid grid-cols-2 gap-3 text-sm">
-                        <div>
-                          <span className="text-muted-foreground">Model:</span>
-                          <span className="ml-2 font-medium">{config.sinkModelId}</span>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">Workflow:</span>
-                          <span className="ml-2 font-medium">{config.workFlowDirection}</span>
-                        </div>
-                        {config.sinkWidth && (
-                          <div>
-                            <span className="text-muted-foreground">Width:</span>
-                            <span className="ml-2 font-medium">{config.sinkWidth}"</span>
-                          </div>
-                        )}
-                        {config.sinkLength && (
-                          <div>
-                            <span className="text-muted-foreground">Length:</span>
-                            <span className="ml-2 font-medium">{config.sinkLength}"</span>
-                          </div>
-                        )}
-                        {config.basins.length > 0 && (
-                          <div className="col-span-2">
-                            <span className="text-muted-foreground">Basins:</span>
-                            <span className="ml-2 font-medium">{config.basins.length} configured</span>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                    
-                    {buildAccessories.length > 0 && (
-                      <div>
-                        <p className="text-sm font-medium text-muted-foreground mb-2">Accessories:</p>
-                        <div className="flex flex-wrap gap-1">
-                          {buildAccessories.map((accessory, i) => (
-                            <Badge key={i} variant="secondary" className="text-xs">
-                              {accessory.assemblyId} (×{accessory.quantity})
-                            </Badge>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
-            </CardContent>
-          </Card>
-
-          {/* BOM Preview */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <Package className="w-5 h-5" />
-                <span>Bill of Materials (BOM)</span>
+                Bill of Materials Preview
               </CardTitle>
               <CardDescription>
-                Preview the complete parts list for this order before submitting
+                Review the complete BOM before submitting your order
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                <Button
-                  onClick={generateBomPreview}
+                <Button 
+                  onClick={generateBomPreview} 
                   disabled={bomLoading}
                   variant="outline"
                   className="w-full"
                 >
                   {bomLoading ? (
                     <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Generating BOM Preview...
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Generating BOM...
                     </>
                   ) : (
                     <>
-                      <Package className="mr-2 h-4 w-4" />
+                      <Package className="w-4 h-4 mr-2" />
                       Generate BOM Preview
                     </>
                   )}
                 </Button>
 
-                {bomPreview && showBomPreview && (
-                  <div className="mt-4 space-y-4">
+                {showBomPreview && bomPreview && (
+                  <div className="space-y-4">
                     <div className="flex items-center justify-between">
-                      <h4 className="font-medium">BOM Summary</h4>
-                      <Badge variant="outline">
-                        {bomPreview.totalItems} total items
-                      </Badge>
-                    </div>
-
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                      <div className="text-center p-2 bg-blue-50 rounded">
-                        <div className="font-medium text-blue-700">
-                          {bomPreview.summary?.systemComponents || 0}
-                        </div>
-                        <div className="text-blue-600 text-xs">System</div>
-                      </div>
-                      <div className="text-center p-2 bg-green-50 rounded">
-                        <div className="font-medium text-green-700">
-                          {bomPreview.summary?.structuralComponents || 0}
-                        </div>
-                        <div className="text-green-600 text-xs">Structural</div>
-                      </div>
-                      <div className="text-center p-2 bg-purple-50 rounded">
-                        <div className="font-medium text-purple-700">
-                          {bomPreview.summary?.basinComponents || 0}
-                        </div>
-                        <div className="text-purple-600 text-xs">Basin</div>
-                      </div>
-                      <div className="text-center p-2 bg-orange-50 rounded">
-                        <div className="font-medium text-orange-700">
-                          {bomPreview.summary?.accessoryComponents || 0}
-                        </div>
-                        <div className="text-orange-600 text-xs">Accessories</div>
+                      <h4 className="font-semibold">BOM Items ({bomPreview.totalItems || 0})</h4>
+                      <div className="text-sm text-slate-600">
+                        {bomPreview.summary?.systemComponents || 0} System + {' '}
+                        {bomPreview.summary?.structuralComponents || 0} Structural + {' '}
+                        {bomPreview.summary?.basinComponents || 0} Basin + {' '}
+                        {bomPreview.summary?.accessoryComponents || 0} Accessories
                       </div>
                     </div>
-
-                    <ScrollArea className="h-64 w-full border rounded">
-                      <div className="p-4 space-y-2">
-                        {bomPreview.bom?.map((item: any, index: number) => (
-                          <div key={index} className="flex items-center justify-between p-2 bg-slate-50 rounded text-sm">
-                            <div className="flex-1">
-                              <div className="font-medium">{item.name}</div>
-                              <div className="text-xs text-muted-foreground">
-                                ID: {item.id} | Category: {item.category}
-                              </div>
-                            </div>
-                            <div className="text-right">
-                              <Badge variant="secondary">×{item.quantity}</Badge>
-                              {item.isCustom && (
-                                <Badge variant="outline" className="ml-1 text-xs">Custom</Badge>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </ScrollArea>
+                    
+                    <div className="max-h-96 overflow-y-auto border rounded-lg">
+                      {bomPreview.bom?.map((item: any, index: number) => (
+                        <BOMItemDisplay key={index} item={item} level={0} />
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
