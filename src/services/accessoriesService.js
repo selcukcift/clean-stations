@@ -47,7 +47,7 @@ async function getAccessoriesByCategory(categoryCode) {
         const accessories = await prisma.assembly.findMany({
             where: {
                 subcategoryCode: categoryCode,
-                type: { in: ['KIT', 'SERVICE_PART', 'COMPLEX'] } // Filter accessory types
+                type: { in: ['KIT', 'SERVICE_PART', 'COMPLEX', 'SIMPLE'] } // Filter accessory types
             },
             select: {
                 assemblyId: true,
@@ -88,7 +88,7 @@ async function getAllAccessories({ searchTerm, categoryFilter, limit = 50, offse
             subcategoryCode: {
                 startsWith: '720.'
             },
-            type: { in: ['KIT', 'SERVICE_PART', 'COMPLEX'] }
+            type: { in: ['KIT', 'SERVICE_PART', 'COMPLEX', 'SIMPLE'] }
         };
         
         if (categoryFilter) {
@@ -162,7 +162,7 @@ async function getAccessoriesGroupedByCategory() {
                 subcategoryCode: {
                     startsWith: '720.'
                 },
-                type: { in: ['KIT', 'SERVICE_PART', 'COMPLEX'] }
+                type: { in: ['KIT', 'SERVICE_PART', 'COMPLEX', 'SIMPLE'] }
             },
             select: {
                 assemblyId: true,
@@ -289,7 +289,7 @@ async function searchAccessories(filters = {}) {
         if (types.length > 0) {
             where.type = { in: types };
         } else {
-            where.type = { in: ['KIT', 'SERVICE_PART', 'COMPLEX'] };
+            where.type = { in: ['KIT', 'SERVICE_PART', 'COMPLEX', 'SIMPLE'] };
         }
         
         // Apply search query

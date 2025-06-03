@@ -68,12 +68,12 @@ export function AccessoriesStep() {
       setLoading(true)
       
       const [categoriesRes, featuredRes] = await Promise.all([
-        nextJsApiClient.get('/accessories?categoryCode=720.702'), // Get accessory categories
+        nextJsApiClient.get('/accessories?getCategories=true'), // Get all accessory categories
         nextJsApiClient.get('/accessories?featured=true') // Get featured accessories
       ])
       
       if (categoriesRes.data.success) {
-        setCategories(categoriesRes.data.data || [])
+        setCategories(categoriesRes.data.categories || [])
       }
       
       if (featuredRes.data.success) {
@@ -266,31 +266,23 @@ export function AccessoriesStep() {
           <div className="mt-6">
             <Label className="text-base font-semibold mb-4 block">Accessory Families</Label>
             <Tabs value={selectedCategory} onValueChange={handleCategoryChange} className="w-full">
-              <TabsList className="grid w-full grid-cols-3 lg:grid-cols-6 h-auto">
-                <TabsTrigger value="ALL" className="text-xs p-2">
+              <TabsList className="flex flex-wrap justify-start h-auto p-1 gap-1">
+                <TabsTrigger value="ALL" className="text-xs p-2 min-w-fit">
                   <Star className="w-4 h-4 mr-1" />
                   Featured
                 </TabsTrigger>
-                <TabsTrigger value="720.702" className="text-xs p-2">
-                  <Package className="w-4 h-4 mr-1" />
-                  Baskets & Shelves
-                </TabsTrigger>
-                <TabsTrigger value="720.703" className="text-xs p-2">
-                  <Package className="w-4 h-4 mr-1" />
-                  Holders & Plates
-                </TabsTrigger>
-                <TabsTrigger value="720.704" className="text-xs p-2">
-                  <Package className="w-4 h-4 mr-1" />
-                  Lighting
-                </TabsTrigger>
-                <TabsTrigger value="720.705" className="text-xs p-2">
-                  <Package className="w-4 h-4 mr-1" />
-                  Electronic
-                </TabsTrigger>
-                <TabsTrigger value="720.706" className="text-xs p-2">
-                  <Package className="w-4 h-4 mr-1" />
-                  Faucet & Drain
-                </TabsTrigger>
+                {categories.map((category) => (
+                  <TabsTrigger key={category.id} value={category.id} className="text-xs p-2 min-w-fit">
+                    <Package className="w-4 h-4 mr-1" />
+                    {category.name.replace('FAUCET, OUTLET, DRAIN, SPRAYER KITS', 'Faucet & Drain')
+                      .replace('ELECTRONIC & DIGITAL ADD-ONS', 'Electronic')
+                      .replace('LIGHTING ADD-ONS', 'Lighting')
+                      .replace('HOLDERS, PLATES & HANGERS', 'Holders & Plates')
+                      .replace('BASKETS, BINS & SHELVES', 'Baskets & Shelves')
+                      .replace('DRAWERS & COMPARTMENTS', 'Drawers')
+                      .replace('MANUAL', 'Manual')}
+                  </TabsTrigger>
+                ))}
               </TabsList>
             </Tabs>
           </div>
@@ -317,11 +309,20 @@ export function AccessoriesStep() {
               <Alert>
                 <Package className="h-4 w-4" />
                 <AlertDescription>
-                  {selectedCategory === '720.702' && 'Baskets, Bins & Shelves - Storage and organization accessories'}
-                  {selectedCategory === '720.703' && 'Holders, Plates & Hangers - Organization and hanging accessories'}
-                  {selectedCategory === '720.704' && 'Lighting Add-ons - Task lighting and magnification accessories'}
-                  {selectedCategory === '720.705' && 'Electronic & Digital Add-ons - Monitor mounts and computer accessories'}
-                  {selectedCategory === '720.706' && 'Faucet, Outlet, Drain, Sprayer Kits - Plumbing and water accessories'}
+                  {(() => {
+                    const category = categories.find(cat => cat.id === selectedCategory)
+                    if (category) {
+                      return `${category.name} - ${category.description || 'Category accessories'}`
+                    }
+                    return 'Category accessories'
+                  })()}
+                  {selectedCategory === '720.702' && ' - Currently showing ' + availableAccessories.length + ' items including bin rails, wire baskets, shelves, and storage solutions'}
+                  {selectedCategory === '720.703' && ' - Currently showing ' + availableAccessories.length + ' items including brush holders, glove dispensers, staging covers, and bottle holders'}
+                  {selectedCategory === '720.704' && ' - Currently showing ' + availableAccessories.length + ' items including magnifying lights, LED task lights, and dimmable lighting'}
+                  {selectedCategory === '720.705' && ' - Currently showing ' + availableAccessories.length + ' items including monitor mounts, CPU holders, keyboard arms, and digital accessories'}
+                  {selectedCategory === '720.706' && ' - Currently showing ' + availableAccessories.length + ' items including faucet kits, sprayer systems, basin lights, and drain accessories'}
+                  {selectedCategory === '720.707' && ' - Currently showing ' + availableAccessories.length + ' items including drawer housing, pull-out shelves, and compartment solutions'}
+                  {selectedCategory === '720.701' && ' - Currently showing ' + availableAccessories.length + ' manual kits in English, French, and Spanish'}
                 </AlertDescription>
               </Alert>
             )}

@@ -42,15 +42,35 @@ This is a **hybrid Next.js + Node.js application** for Torvan Medical CleanStati
 - **Next.js 15** with App Router (`app/` directory)
 - **ShadCN UI** components in `components/ui/`
 - **Tailwind CSS** for styling
-- **Zustand** for state management (`stores/`)
+- **Zustand** for order creation state (`stores/orderCreateStore.ts`)
 - **React Hook Form** with Zod validation
-- **Framer Motion** for animations
+- **NextAuth.js** for authentication and session management
 
 ### Database
 - **PostgreSQL** with **Prisma ORM**
 - Schema: `prisma/schema.prisma`
 - Migrations: `prisma/migrations/`
-- Main models: User, Order, Part, Assembly, QcFormTemplate, OrderQcResult
+- Main models: User, Order, Part, Assembly, QcFormTemplate, OrderQcResult, ServiceOrder
+
+## Authentication System
+
+Uses **NextAuth.js** with credentials provider:
+
+```typescript
+// Client-side session access
+import { useSession } from 'next-auth/react';
+const { data: session, status } = useSession();
+
+// Server-side auth utility  
+import { getAuthUser } from '@/lib/auth';
+const user = await getAuthUser(); // No request parameter needed
+```
+
+**Key Files:**
+- `app/api/auth/[...nextauth]/route.ts` - NextAuth configuration
+- `lib/authOptions.ts` - Centralized auth options
+- `lib/auth.ts` - Server-side auth utilities
+- `components/Providers.tsx` - SessionProvider wrapper
 
 ## API Client Pattern
 
@@ -63,8 +83,6 @@ import { plainNodeApiClient } from '@/lib/api';
 // For Next.js API routes (port 3005) - preferred for new features
 import { nextJsApiClient } from '@/lib/api';
 ```
-
-Note: `plainNodeApiClient` incorrectly points to port 3004 in the code - should be 3001.
 
 ## Key Business Logic Locations
 
@@ -79,8 +97,9 @@ Note: `plainNodeApiClient` incorrectly points to port 3004 in the code - should 
 - **API**: `app/api/orders/` - Order CRUD operations
 
 ### BOM Generation
-- **Service**: `src/services/bomService.js` - Bill of Materials generation
+- **Service**: `src/services/bomService.js` - Bill of Materials generation logic
 - **API**: `app/api/orders/[orderId]/bom/` - BOM export functionality
+- **Preview API**: `app/api/orders/preview-bom/` - BOM preview before order submission
 - **Legacy**: `bom-generator.js` - Original BOM logic
 
 ### Quality Control System
@@ -89,12 +108,11 @@ Note: `plainNodeApiClient` incorrectly points to port 3004 in the code - should 
 - **Components**: `components/qc/` - QC form interfaces
 - **Admin API**: `app/api/admin/qc-templates/` - Template management
 
-### Authentication & Authorization
-- JWT-based authentication stored in httpOnly cookies
-- **API**: `app/api/auth/login/` - Login endpoint
-- **Utilities**: `lib/nextAuthUtils.ts` - JWT handling
-- **Middleware**: `src/lib/authMiddleware.js` - Route protection
-- **Store**: `stores/authStore.ts` - Client-side auth state
+### Service Orders
+- **Models**: ServiceOrder, ServiceOrderItem in Prisma schema
+- **API**: `app/api/service-orders/` - Service order management
+- **Components**: `components/service/` - Service order interfaces
+- **Parts API**: `app/api/service-parts/` - Service parts catalog
 
 ## Database Setup
 
@@ -110,7 +128,8 @@ Note: `plainNodeApiClient` incorrectly points to port 3004 in the code - should 
 
 Required:
 - `DATABASE_URL` - PostgreSQL connection string
-- `JWT_SECRET` - JWT signing secret
+- `NEXTAUTH_SECRET` - NextAuth.js signing secret
+- `NEXTAUTH_URL` - NextAuth.js base URL (http://localhost:3005 for development)
 
 Optional:
 - `NODE_ENV` - Environment (development/production)
@@ -118,6 +137,7 @@ Optional:
 - `CORS_ORIGINS` - Allowed CORS origins
 - `UPLOADS_DIR` - File upload directory
 - `NEXT_PUBLIC_API_URL` - Frontend API URL
+- `JWT_SECRET` - Legacy JWT secret (still used by Node.js backend)
 
 ## Role-Based Access
 
@@ -148,19 +168,42 @@ System roles with hierarchical permissions:
 - Follow React Hook Form patterns for forms
 - Use Zod schemas for validation (see `lib/qcValidationSchemas.ts`)
 - Implement proper TypeScript types
+- Always add unique `key` props for mapped React elements
 
 ### State Management
-- Use Zustand stores with Immer for complex state
+- Use Zustand stores with Immer for complex state (see `stores/orderCreateStore.ts`)
+- Use NextAuth session for authentication state
 - Keep API calls in components or custom hooks
 - Use optimistic updates where appropriate
 
-## Legacy Code Notes
+### Authentication Patterns
+- Use `useSession()` hook for client-side auth checks
+- Use `getAuthUser()` utility for server-side API routes
+- Wrap apps with `<SessionProvider>` in layout
+- Implement route protection with session status checks
 
-Several files contain legacy frontend logic that's being migrated:
+## Important Implementation Notes
+
+### Configurator Assembly IDs
+The configurator service uses specific assembly IDs that must match the database:
+- **Legs**: `T2-DL27-KIT`, `T2-DL14-KIT`, `T2-LC1-KIT`, `T2-DL27-FH-KIT`, `T2-DL14-FH-KIT`
+- **Feet**: `T2-LEVELING-CASTOR-475`, `T2-SEISMIC-FEET`
+
+If legs/feet don't appear in configurator, verify these assembly IDs exist in database.
+
+### BOM Preview Integration
+The BOM preview in ReviewStep uses the same `generateBOMForOrder` service as actual order creation, ensuring accuracy. Preview endpoint: `POST /api/orders/preview-bom`
+
+### Environment Loading
+Node.js backend loads environment files in precedence order:
+1. `.env.local` (highest priority)
+2. `.env.development` 
+3. `.env` (lowest priority)
+
+### Legacy Code Notes
+Several files contain legacy frontend logic preserved for reference:
 - `app.js` - Original vanilla JS configurator
 - `sink-config.js` - Sink configuration logic
 - `accessories.js` - Accessories management
 - `bom-generator.js` - BOM generation
 - `index.html`, `styles.css` - Legacy UI
-
-These are preserved for reference during migration to the modern stack.
