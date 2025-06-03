@@ -17,7 +17,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react"
 // Import step components
 import { CustomerInfoStep } from "./CustomerInfoStep"
 import { SinkSelectionStep } from "./SinkSelectionStep"
-import { ConfigurationStep } from "./ConfigurationStep"
+import ConfigurationStep from "./ConfigurationStep"
 import { AccessoriesStep } from "./AccessoriesStep"
 import { ReviewStep } from "./ReviewStep"
 
@@ -35,7 +35,7 @@ interface OrderWizardProps {
 }
 
 export function OrderWizard({ isEditMode = false, orderId }: OrderWizardProps) {
-  const { currentStep, setCurrentStep, isStepValid } = useOrderCreateStore()
+  const { currentStep, setCurrentStep, isStepValid, sinkSelection } = useOrderCreateStore()
 
   const handleNext = () => {
     if (currentStep < 5 && isStepValid(currentStep)) {
@@ -63,7 +63,7 @@ export function OrderWizard({ isEditMode = false, orderId }: OrderWizardProps) {
       case 2:
         return <SinkSelectionStep />
       case 3:
-        return <ConfigurationStep />
+        return <ConfigurationStep buildNumbers={sinkSelection.buildNumbers} onComplete={() => setCurrentStep(4)} />
       case 4:
         return <AccessoriesStep />
       case 5:
@@ -155,14 +155,22 @@ export function OrderWizard({ isEditMode = false, orderId }: OrderWizardProps) {
           <span>Previous</span>
         </Button>
 
-        <Button
-          onClick={handleNext}
-          disabled={currentStep === 5 || !isStepValid(currentStep)}
-          className="flex items-center space-x-2"
-        >
-          <span>{currentStep === 5 ? "Submit Order" : "Next"}</span>
-          <ChevronRight className="w-4 h-4" />
-        </Button>
+        {currentStep !== 3 && (
+          <Button
+            onClick={handleNext}
+            disabled={currentStep === 5 || !isStepValid(currentStep)}
+            className="flex items-center space-x-2"
+          >
+            <span>{currentStep === 5 ? "Submit Order" : "Next"}</span>
+            <ChevronRight className="w-4 h-4" />
+          </Button>
+        )}
+
+        {currentStep === 3 && (
+          <div className="text-sm text-slate-600 italic">
+            Use the "Next Section" buttons within the configuration to proceed
+          </div>
+        )}
       </div>
     </div>
   )

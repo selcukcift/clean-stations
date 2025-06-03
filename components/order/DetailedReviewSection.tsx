@@ -35,6 +35,18 @@ export function DetailedReviewSection({
   configurations, 
   accessories 
 }: DetailedReviewSectionProps) {
+  const getPlacementLabel = (placement: string) => {
+    switch (placement) {
+      case 'CENTER': return 'Center'
+      case 'LEFT': return 'Left Side'
+      case 'RIGHT': return 'Right Side'
+      case 'BETWEEN_1_2': return 'Between Basin 1-2'
+      case 'BETWEEN_2_3': return 'Between Basin 2-3'
+      case 'BETWEEN_BASINS': return 'Between Basins' // Legacy
+      default: return placement || 'Center'
+    }
+  }
+
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set(['customer', 'sinks'])
   )
@@ -250,7 +262,7 @@ export function DetailedReviewSection({
             {config.faucets.map((faucet: any, index: number) => (
               <div key={index} className="flex items-center justify-between p-2 bg-slate-50 rounded text-sm">
                 <span>{faucet.faucetTypeId || 'Not specified'}</span>
-                <Badge variant="outline" className="text-xs">{faucet.placement || 'Center'}</Badge>
+                <Badge variant="outline" className="text-xs">{getPlacementLabel(faucet.placement)}</Badge>
               </div>
             ))}
           </div>

@@ -55,7 +55,7 @@ const SinkConfigurationSchema = z.object({
   faucets: z.array(FaucetConfigurationSchema).optional(),
   sprayer: SprayerConfigurationSchema.optional(),
   sprayers: z.array(SprayerItemSchema).optional(),
-  controlBoxId: z.string().optional()
+  controlBoxId: z.string().nullable().optional()
 })
 
 const SelectedAccessorySchema = z.object({

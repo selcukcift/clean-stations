@@ -21,6 +21,174 @@ async function getPartDetails(partId) { // partId here is the UUID
 }
 
 
+async function addControlBoxWithDynamicComponents(controlBoxId, quantity, category, bomList, processedAssemblies = new Set()) {
+    // Get the control box assembly
+    const assembly = await getAssemblyDetails(controlBoxId);
+    if (!assembly) {
+        console.warn(`Control box with ID ${controlBoxId} not found in database.`);
+        bomList.push({
+            id: controlBoxId,
+            name: `Unknown Control Box: ${controlBoxId}`,
+            quantity: quantity,
+            category: category || 'UNKNOWN',
+            type: 'UNKNOWN',
+            components: [],
+            isPlaceholder: true,
+        });
+        return;
+    }
+
+    const bomItem = {
+        id: assembly.assemblyId,
+        name: assembly.name,
+        quantity: quantity,
+        category: category || assembly.type,
+        type: assembly.type,
+        components: [],
+    };
+
+    // Define dynamic components based on control box type
+    let dynamicComponents = [];
+    
+    // Base components that all control boxes share
+    const baseComponents = [
+        { partId: 'T2-RFK-BRD-MNT', quantity: 1 },
+        { partId: 'T2-CTRL-RK3-SHELL', quantity: 1 },
+        { partId: 'PW-105R3-06', quantity: 1 },
+        { partId: 'LRS-100-24', quantity: 1 }
+    ];
+    
+    // Determine specific components based on control box type
+    switch (controlBoxId) {
+        case 'T2-CTRL-EDR1':
+            dynamicComponents = [
+                ...baseComponents,
+                { partId: 'T2-EDRAIN-BOARD-R3', quantity: 1 },
+                { partId: 'T-ESOM-F4-01-EDR', quantity: 1 },
+                { partId: '52-67001-7', quantity: 1 },
+                { partId: 'DC11.0031.201', quantity: 1 },
+                { partId: 'T4072014031-001', quantity: 1 }
+            ];
+            break;
+            
+        case 'T2-CTRL-ESK1':
+            dynamicComponents = [
+                ...baseComponents,
+                { partId: 'T2-ESINK-BOARD-R3', quantity: 1 },
+                { partId: 'T-ESOM-F4-01-ESK', quantity: 1 },
+                { partId: '52-67001-7', quantity: 1 },
+                { partId: 'DC11.0031.201', quantity: 1 },
+                { partId: 'T4072014031-001', quantity: 1 }
+            ];
+            break;
+            
+        case 'T2-CTRL-EDR1-ESK1':
+            dynamicComponents = [
+                ...baseComponents,
+                { partId: 'T2-EDRAIN-BOARD-R3', quantity: 1 },
+                { partId: 'T2-ESINK-BOARD-R3', quantity: 1 },
+                { partId: 'T-ESOM-F4-01-EDR', quantity: 1 },
+                { partId: 'T-ESOM-F4-01-ESK', quantity: 1 },
+                { partId: '52-67001-7', quantity: 2 },
+                { partId: 'DC11.0031.201', quantity: 2 },
+                { partId: 'T4072014031-001', quantity: 2 }
+            ];
+            break;
+            
+        case 'T2-CTRL-EDR2':
+        case 'T2-CTRL-ESK2':
+        case 'T2-CTRL-EDR1-ESK2':
+        case 'T2-CTRL-EDR2-ESK1':
+            // For dual basin configurations, add bracket
+            dynamicComponents = [...baseComponents];
+            if (controlBoxId.includes('EDR')) {
+                const edrCount = controlBoxId.includes('EDR2') ? 2 : 1;
+                dynamicComponents.push(
+                    { partId: 'T2-EDRAIN-BOARD-R3', quantity: edrCount },
+                    { partId: 'T-ESOM-F4-01-EDR', quantity: edrCount }
+                );
+            }
+            if (controlBoxId.includes('ESK')) {
+                const eskCount = controlBoxId.includes('ESK2') ? 2 : 1;
+                dynamicComponents.push(
+                    { partId: 'T2-ESINK-BOARD-R3', quantity: eskCount },
+                    { partId: 'T-ESOM-F4-01-ESK', quantity: eskCount }
+                );
+            }
+            const totalBoards = (controlBoxId.match(/\d/g) || []).reduce((a, b) => parseInt(a) + parseInt(b), 0);
+            dynamicComponents.push(
+                { partId: '52-67001-7', quantity: totalBoards },
+                { partId: 'DC11.0031.201', quantity: totalBoards },
+                { partId: 'T4072014031-001', quantity: totalBoards },
+                { partId: 'T2-UPG-CTRL-BOX-BRKT', quantity: 1 }
+            );
+            break;
+            
+        case 'T2-CTRL-EDR3':
+        case 'T2-CTRL-ESK3':
+            // For triple basin configurations
+            dynamicComponents = [
+                ...baseComponents,
+                { partId: 'T2-UPG-CTRL-BOX-BRKT', quantity: 1 }
+            ];
+            if (controlBoxId === 'T2-CTRL-EDR3') {
+                dynamicComponents.push(
+                    { partId: 'T2-EDRAIN-BOARD-R3', quantity: 3 },
+                    { partId: 'T-ESOM-F4-01-EDR', quantity: 3 }
+                );
+            } else {
+                dynamicComponents.push(
+                    { partId: 'T2-ESINK-BOARD-R3', quantity: 3 },
+                    { partId: 'T-ESOM-F4-01-ESK', quantity: 3 }
+                );
+            }
+            dynamicComponents.push(
+                { partId: '52-67001-7', quantity: 3 },
+                { partId: 'DC11.0031.201', quantity: 3 },
+                { partId: 'T4072014031-001', quantity: 3 }
+            );
+            break;
+    }
+
+    // Add each component to the BOM
+    for (const component of dynamicComponents) {
+        // First check if it's a part
+        const part = await prisma.part.findUnique({
+            where: { partId: component.partId }
+        });
+
+        if (part) {
+            bomItem.components.push({
+                id: part.partId,
+                name: part.name,
+                quantity: component.quantity,
+                type: part.type,
+                components: [],
+            });
+        } else {
+            // Check if it's an assembly
+            const subAssembly = await prisma.assembly.findUnique({
+                where: { assemblyId: component.partId }
+            });
+
+            if (subAssembly) {
+                // Recursively add the sub-assembly
+                await addItemToBOMRecursive(
+                    subAssembly.assemblyId,
+                    component.quantity,
+                    'SUB_ASSEMBLY',
+                    bomItem.components,
+                    new Set(processedAssemblies)
+                );
+            } else {
+                console.warn(`Component ${component.partId} not found as part or assembly`);
+            }
+        }
+    }
+
+    bomList.push(bomItem);
+}
+
 async function addItemToBOMRecursive(assemblyId, quantity, category, bomList, processedAssemblies = new Set()) {
     if (processedAssemblies.has(assemblyId + '_' + category)) { // Avoid infinite loops for same item in same category context
         // console.warn(`Recursive call detected for ${assemblyId} in category ${category}, skipping.`);
@@ -288,7 +456,19 @@ async function generateBOMForOrder(orderData) {
         
         // 7. Control Box
         if (controlBoxId) {
-            await addItemToBOMRecursive(controlBoxId, 1, 'CONTROL_BOX', bom, new Set());
+            // For control boxes without defined components, dynamically add them
+            const controlBoxesWithDynamicComponents = [
+                'T2-CTRL-EDR1', 'T2-CTRL-ESK1', 'T2-CTRL-EDR1-ESK1',
+                'T2-CTRL-EDR2', 'T2-CTRL-ESK2', 'T2-CTRL-EDR1-ESK2',
+                'T2-CTRL-EDR2-ESK1', 'T2-CTRL-EDR3', 'T2-CTRL-ESK3'
+            ];
+            
+            if (controlBoxesWithDynamicComponents.includes(controlBoxId)) {
+                // Add control box with dynamically determined components
+                await addControlBoxWithDynamicComponents(controlBoxId, 1, 'CONTROL_BOX', bom, new Set());
+            } else {
+                await addItemToBOMRecursive(controlBoxId, 1, 'CONTROL_BOX', bom, new Set());
+            }
         }
 
         // 8. Faucets (handle both single and array format)

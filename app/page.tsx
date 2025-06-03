@@ -1,31 +1,7 @@
-"use client"
-
-import { useEffect } from "react"
-import { useRouter } from "next/navigation"
 import { Loader2 } from "lucide-react"
 
-import { useSession } from "next-auth/react"
-
 export default function HomePage() {
-  const router = useRouter()
-  const { data: session, status } = useSession()
-  const isAuthenticated = status === 'authenticated'
-  const user = session?.user
-  const isLoading = status === 'loading'
-
-  useEffect(() => {
-    // Give a moment for auth state to hydrate from localStorage
-    const timer = setTimeout(() => {
-      if (isAuthenticated && user) {
-        router.push('/dashboard')
-      } else {
-        router.push('/login')
-      }
-    }, 100)
-
-    return () => clearTimeout(timer)
-  }, [status, isAuthenticated, user, router])
-
+  // Middleware will handle the redirect, this is just a fallback loading state
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center">
       <div className="text-center">
@@ -36,7 +12,7 @@ export default function HomePage() {
           Loading Torvan Medical CleanStation
         </h1>
         <p className="text-slate-600">
-          Please wait while we prepare your workflow system...
+          Redirecting...
         </p>
       </div>
     </div>
