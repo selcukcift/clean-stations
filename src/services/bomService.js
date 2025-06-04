@@ -472,19 +472,22 @@ async function generateBOMForOrder(orderData) {
             }
         }
         
-        // 7. Control Box (Auto-select based on basin types)
-        const autoControlBoxId = controlBoxId || getAutoControlBoxId(basins);
-        if (autoControlBoxId) {
-            const controlBoxesWithDynamicComponents = [
-                'T2-CTRL-EDR1', 'T2-CTRL-ESK1', 'T2-CTRL-EDR1-ESK1',
-                'T2-CTRL-EDR2', 'T2-CTRL-ESK2', 'T2-CTRL-EDR1-ESK2',
-                'T2-CTRL-EDR2-ESK1', 'T2-CTRL-EDR3', 'T2-CTRL-ESK3'
-            ];
-            
-            if (controlBoxesWithDynamicComponents.includes(autoControlBoxId)) {
-                await addControlBoxWithDynamicComponents(autoControlBoxId, 1, 'CONTROL_BOX', bom, new Set());
-            } else {
-                await addItemToBOMWithPartNumber(autoControlBoxId, 1, 'CONTROL_BOX', bom, new Set());
+        // 7. Control Box (Auto-select based on basin types - only when configuration is complete)
+        const isConfigurationComplete = isSinkConfigurationComplete(config);
+        if (isConfigurationComplete) {
+            const autoControlBoxId = controlBoxId || getAutoControlBoxId(basins);
+            if (autoControlBoxId) {
+                const controlBoxesWithDynamicComponents = [
+                    'T2-CTRL-EDR1', 'T2-CTRL-ESK1', 'T2-CTRL-EDR1-ESK1',
+                    'T2-CTRL-EDR2', 'T2-CTRL-ESK2', 'T2-CTRL-EDR1-ESK2',
+                    'T2-CTRL-EDR2-ESK1', 'T2-CTRL-EDR3', 'T2-CTRL-ESK3'
+                ];
+                
+                if (controlBoxesWithDynamicComponents.includes(autoControlBoxId)) {
+                    await addControlBoxWithDynamicComponents(autoControlBoxId, 1, 'CONTROL_BOX', bom, new Set());
+                } else {
+                    await addItemToBOMWithPartNumber(autoControlBoxId, 1, 'CONTROL_BOX', bom, new Set());
+                }
             }
         }
 
@@ -558,6 +561,41 @@ async function generateBOMForOrder(orderData) {
  * @param {Array} basins - Array of basin configurations
  * @returns {string|null} Control box assembly ID
  */
+/**
+ * Check if sink configuration is complete enough to determine control box
+ * @param {Object} config - Sink configuration
+ * @returns {boolean} - True if configuration is complete
+ */
+function isSinkConfigurationComplete(config) {
+    // Must have sink model
+    if (!config.sinkModelId) return false;
+    
+    // Must have basins configured
+    if (!config.basins || config.basins.length === 0) return false;
+    
+    // Check if all basins have basin types configured
+    const allBasinsHaveTypes = config.basins.every(basin => 
+        basin.basinTypeId && basin.basinTypeId !== 'undefined'
+    );
+    
+    if (!allBasinsHaveTypes) return false;
+    
+    // Check if basin count matches sink model expectations
+    const sinkModel = config.sinkModelId;
+    const expectedBasinCount = sinkModel === 'T2-B1' ? 1 : 
+                              sinkModel === 'T2-B2' ? 2 : 
+                              sinkModel === 'T2-B3' ? 3 : 0;
+    
+    // Only require control box when we have the expected number of basins
+    // This prevents control box from appearing while user is still configuring basins
+    if (config.basins.length < expectedBasinCount) return false;
+    
+    // Optional: Check if basin sizes are configured (less strict)
+    // This allows control box to appear even if basin sizes aren't fully configured
+    
+    return true;
+}
+
 function getAutoControlBoxId(basins) {
     if (!basins || basins.length === 0) return null;
     
@@ -711,9 +749,9 @@ function flattenBOMForDisplay(hierarchicalBom) {
                 indentLevel: parentLevel
             });
             
-            // Recursively add children
-            if (item.children && item.children.length > 0) {
-                flattenRecursive(item.children, parentLevel + 1);
+            // Recursively add children (stored in 'components' property)
+            if (item.components && item.components.length > 0) {
+                flattenRecursive(item.components, parentLevel + 1);
             }
         }
     }

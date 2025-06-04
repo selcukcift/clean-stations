@@ -272,19 +272,22 @@ async function getBasinTypeOptions() {
             id: 'E_SINK', 
             name: 'E-Sink', 
             kitAssemblyId: 'T2-BSN-ESK-KIT',
-            kitName: 'T2-BSN-ESK-KIT'
+            kitName: 'T2-BSN-ESK-KIT',
+            partNumber: '713.109'
         },
         { 
             id: 'E_SINK_DI', 
             name: 'E-Sink DI', 
             kitAssemblyId: 'T2-BSN-ESK-DI-KIT',
-            kitName: 'T2-BSN-ESK-DI-KIT'
+            kitName: 'T2-BSN-ESK-DI-KIT',
+            partNumber: '713.108'
         },
         { 
             id: 'E_DRAIN', 
             name: 'E-Drain', 
             kitAssemblyId: 'T2-BSN-EDR-KIT',
-            kitName: 'T2-BSN-EDR-KIT'
+            kitName: 'T2-BSN-EDR-KIT',
+            partNumber: '713.107'
         }
     ];
 }
@@ -295,16 +298,61 @@ async function getBasinTypeOptions() {
  */
 async function getBasinSizeOptions() {
     const standardSizes = [
-        { assemblyId: '712.102', name: 'T2-ADW-BASIN20X20X8', dimensions: '20X20X8' },
-        { assemblyId: '712.103', name: 'T2-ADW-BASIN24X20X8', dimensions: '24X20X8' },
-        { assemblyId: '712.104', name: 'T2-ADW-BASIN24X20X10', dimensions: '24X20X10' },
-        { assemblyId: '712.105', name: 'T2-ADW-BASIN30X20X8', dimensions: '30X20X8' },
-        { assemblyId: '712.106', name: 'T2-ADW-BASIN30X20X10', dimensions: '30X20X10' }
+        { 
+            id: '20X20X8',
+            assemblyId: '712.102', 
+            name: 'T2-ADW-BASIN20X20X8', 
+            dimensions: '20X20X8',
+            displayName: '20" x 20" x 8"',
+            partNumber: '712.102'
+        },
+        { 
+            id: '24X20X8',
+            assemblyId: '712.103', 
+            name: 'T2-ADW-BASIN24X20X8', 
+            dimensions: '24X20X8',
+            displayName: '24" x 20" x 8"',
+            partNumber: '712.103'
+        },
+        { 
+            id: '24X20X10',
+            assemblyId: '712.104', 
+            name: 'T2-ADW-BASIN24X20X10', 
+            dimensions: '24X20X10',
+            displayName: '24" x 20" x 10"',
+            partNumber: '712.104'
+        },
+        { 
+            id: '30X20X8',
+            assemblyId: '712.105', 
+            name: 'T2-ADW-BASIN30X20X8', 
+            dimensions: '30X20X8',
+            displayName: '30" x 20" x 8"',
+            partNumber: '712.105'
+        },
+        { 
+            id: '30X20X10',
+            assemblyId: '712.106', 
+            name: 'T2-ADW-BASIN30X20X10', 
+            dimensions: '30X20X10',
+            displayName: '30" x 20" x 10"',
+            partNumber: '712.106'
+        },
+        {
+            id: 'CUSTOM',
+            assemblyId: 'CUSTOM',
+            name: 'Custom Size',
+            dimensions: 'Custom',
+            displayName: 'Custom Size (enter dimensions)',
+            partNumber: 'CUSTOM',
+            isCustom: true
+        }
     ];
     
     return {
         standardSizes,
-        customPartNumberRule: "720.215.001 T2-ADW-BASIN-[width]x[length]x[depth]"
+        customPartNumberRule: "720.215.001 T2-ADW-BASIN-[width]x[length]x[depth]",
+        customInstructions: "Enter custom dimensions in format: WidthxLengthxDepth (e.g., 32x22x10)"
     };
 }
 

@@ -65,8 +65,9 @@ export function BOMDebugHelper({ orderConfig, isVisible, onToggleVisibility }: B
   const [error, setError] = useState<string | null>(null)
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(['sink-body', 'basin']))
   const [searchTerm, setSearchTerm] = useState('')
-  const [viewMode, setViewMode] = useState<'categorized' | 'hierarchical'>('categorized')
+  const [viewMode, setViewMode] = useState<'categorized' | 'hierarchical'>('hierarchical')
   const [showPrices, setShowPrices] = useState(false)
+  const [maxDepth, setMaxDepth] = useState(3)
 
   const generateBOMPreview = useCallback(async () => {
     if (!orderConfig || !orderConfig.sinkModelId) {
@@ -118,8 +119,73 @@ export function BOMDebugHelper({ orderConfig, isVisible, onToggleVisibility }: B
       if (orderConfig.basins && orderConfig.basins.length > 0) {
         configData.basins = orderConfig.basins.map((basin: any) => {
           const basinData: any = {}
-          if (basin.basinType) basinData.basinTypeId = basin.basinType
-          if (basin.basinSizePartNumber) basinData.basinSizePartNumber = basin.basinSizePartNumber
+          
+          // Map basin type IDs to kit assembly IDs
+          if (basin.basinType || basin.basinTypeId) {
+            const basinTypeValue = basin.basinType || basin.basinTypeId
+            let kitAssemblyId = basinTypeValue
+            
+            // Map the UI values to actual kit assembly IDs
+            switch (basinTypeValue) {
+              case 'E_SINK':
+                kitAssemblyId = 'T2-BSN-ESK-KIT'
+                break
+              case 'E_SINK_DI':
+                kitAssemblyId = 'T2-BSN-ESK-DI-KIT'
+                break
+              case 'E_DRAIN':
+                kitAssemblyId = 'T2-BSN-EDR-KIT'
+                break
+              default:
+                // If it's already a kit assembly ID, keep it
+                if (!basinTypeValue.startsWith('T2-BSN-')) {
+                  console.warn(`Unknown basin type: ${basinTypeValue}`)
+                }
+                kitAssemblyId = basinTypeValue
+            }
+            basinData.basinTypeId = kitAssemblyId
+          }
+          
+          // Map basin size to part number
+          if (basin.basinSizePartNumber || basin.basinSize) {
+            let sizePartNumber = basin.basinSizePartNumber
+            
+            // Map UI basin size values to actual part numbers
+            if (basin.basinSize && !sizePartNumber) {
+              const sizeMappings: Record<string, string> = {
+                '20X20X8': 'T2-ADW-BASIN20X20X8',
+                '24X20X8': 'T2-ADW-BASIN24X20X8', 
+                '24X20X10': 'T2-ADW-BASIN24X20X10',
+                '30X20X8': 'T2-ADW-BASIN30X20X8',
+                '30X20X10': 'T2-ADW-BASIN30X20X10'
+              }
+              
+              // Handle standard sizes
+              if (sizeMappings[basin.basinSize]) {
+                sizePartNumber = sizeMappings[basin.basinSize]
+              }
+              // Handle custom sizes - either "CUSTOM" or dimension format
+              else if (basin.basinSize === 'CUSTOM' || basin.basinSize.includes('X') || basin.basinSize.includes('x')) {
+                // If it's CUSTOM, we need custom dimensions (should be provided separately)
+                if (basin.basinSize === 'CUSTOM' && basin.customDimensions) {
+                  sizePartNumber = `720.215.001 T2-ADW-BASIN-${basin.customDimensions}`
+                } else if (basin.basinSize !== 'CUSTOM') {
+                  // Direct dimension format like "32X22X10" or "32x22x10"
+                  const normalizedDimensions = basin.basinSize.toUpperCase()
+                  sizePartNumber = `720.215.001 T2-ADW-BASIN-${normalizedDimensions}`
+                }
+              }
+              // Fallback - use as-is
+              else {
+                sizePartNumber = basin.basinSize
+              }
+            }
+            
+            if (sizePartNumber) {
+              basinData.basinSizePartNumber = sizePartNumber
+            }
+          }
+          
           if (basin.addonIds && basin.addonIds.length > 0) basinData.addonIds = basin.addonIds
           return basinData
         }).filter((basin: any) => basin.basinTypeId || basin.basinSizePartNumber || (basin.addonIds && basin.addonIds.length > 0))
@@ -260,42 +326,44 @@ export function BOMDebugHelper({ orderConfig, isVisible, onToggleVisibility }: B
       'other': []
     }
 
+    // Helper function to extract part number prefix
+    const getPartNumberPrefix = (id: string): string => {
+      const match = id.match(/^(\d{3}\.\d+)/);
+      return match ? match[1] : '';
+    }
+
     items.forEach(item => {
       const id = (item.assemblyId || item.partNumber || '').toLowerCase()
       const name = (item.name || item.description || '').toLowerCase()
       const category = item.category || ''
+      const partPrefix = getPartNumberPrefix(id)
       
-      // Use configuration-based categorization
+      // Use configuration-based categorization with part number ranges
       if (category === 'SYSTEM' || name.includes('manual')) {
         categories['system'].push(item)
       } else if (
         // Sink Body Configuration - includes legs, feet, pegboard, overhead lights
         category === 'SINK_BODY' || 
         // Sink body assemblies (709.82-709.84)
+        partPrefix.startsWith('709.') ||
+        // Legs assemblies (711.97-711.101)
+        (partPrefix.startsWith('711.') && parseInt(partPrefix.split('.')[1]) >= 97 && parseInt(partPrefix.split('.')[1]) <= 101) ||
+        // Feet assemblies (711.95-711.96)
+        partPrefix === '711.95' || partPrefix === '711.96' ||
+        // Pegboard components (715.120-715.127, 716.128-716.131, 708.77)
+        (partPrefix.startsWith('715.') && parseInt(partPrefix.split('.')[1]) >= 120 && parseInt(partPrefix.split('.')[1]) <= 127) ||
+        partPrefix === '716.128' || partPrefix === '716.130' || partPrefix === '716.131' ||
+        partPrefix === '708.77' ||
+        // Sink body part IDs
         id.includes('t2-body-') ||
-        // Legs - Height Adjustable (711.97-711.99)
-        id.includes('t2-dl27-kit') || id.includes('t2-dl14-kit') || id.includes('t2-lc1-kit') ||
-        // Legs - Fixed Height (711.100-711.101) 
-        id.includes('t2-dl27-fh-kit') || id.includes('t2-dl14-fh-kit') ||
-        // Electromechanical columns/lifters
-        id === 't2-lc1-kit' || id === 't2-dl27-kit' || id === 't2-dl14-kit' ||
-        // Feet (711.95-711.96)
-        id.includes('t2-leveling-castor') || id.includes('t2-seismic-feet') ||
-        // Pegboard components (715.120-715.127, 716.128, 716.130-716.131)
+        id.includes('t2-dl27') || id.includes('t2-dl14') || id.includes('t2-lc1') ||
+        id.includes('leveling-castor') || id.includes('seismic-feet') ||
+        id.includes('castor') || id.includes('feet') ||
         id.includes('t2-adw-pb-') || id.includes('t2-ohl-mdrd-kit') || 
         id.includes('t2-adw-pb-perf-kit') || id.includes('t2-adw-pb-solid-kit') ||
-        // Pegboard color options (708.77)
         id.includes('t-oa-pb-color') || id.includes('pb-color') ||
-        // Overhead LED light for pegboard
         id.includes('t-oa-ohl-led') ||
-        // Explicit pegboard part numbers to ensure they stay in sink body
-        id === 't2-adw-pb-3436' || id === 't2-adw-pb-4836' || id === 't2-adw-pb-6036' ||
-        id === 't2-adw-pb-7236' || id === 't2-adw-pb-8436' || id === 't2-adw-pb-9636' ||
-        id === 't2-adw-pb-10836' || id === 't2-adw-pb-12036' || id === 't2-ohl-mdrd-kit' ||
-        id === 't2-adw-pb-perf-kit' || id === 't2-adw-pb-solid-kit' || id === 't-oa-ohl-led' ||
-        // Power bar kit (part of sink electrical system)
         id.includes('t2-pwrbar-kit') ||
-        // Other sink structure components
         id.includes('t2-adw-') && (id.includes('frame') || id.includes('instro')) ||
         name.includes('sink body') || name.includes('frame') || name.includes('lifter') || 
         name.includes('leg') || name.includes('pegboard') || name.includes('overhead light') ||
@@ -303,61 +371,72 @@ export function BOMDebugHelper({ orderConfig, isVisible, onToggleVisibility }: B
       ) {
         categories['sink-body'].push(item)
       } else if (
-        // Basin Configuration (722.*)
+        // Basin Configuration (712.*, 713.*, 706.65, 706.67-706.68)
         category === 'BASIN' || category?.includes('BASIN') ||
         // Basin types (713.107-713.109)
-        id.includes('t2-bsn-edr-kit') || id.includes('t2-bsn-esk-kit') || id.includes('t2-bsn-esk-di-kit') ||
+        (partPrefix.startsWith('713.') && parseInt(partPrefix.split('.')[1]) >= 107 && parseInt(partPrefix.split('.')[1]) <= 109) ||
         // Basin sizes (712.102-712.106)
+        (partPrefix.startsWith('712.') && parseInt(partPrefix.split('.')[1]) >= 102 && parseInt(partPrefix.split('.')[1]) <= 106) ||
+        // Basin add-ons
+        partPrefix === '706.65' || partPrefix === '706.67' || partPrefix === '706.68' ||
+        // Basin part IDs
+        id.includes('t2-bsn-edr-kit') || id.includes('t2-bsn-esk-kit') || id.includes('t2-bsn-esk-di-kit') ||
         id.includes('t2-adw-basin') ||
-        // Basin components
         id.includes('t2-drain-') || id.includes('t2-valve-') || id.includes('t2-bottom-fill') ||
         id.includes('t2-edr-temp') || id.includes('t2-esk-temp') || id.includes('t2-emergstop') ||
-        name.includes('basin') || name.includes('drain') || name.includes('valve plate')
+        id.includes('t2-oa-ms-1026') || // P-trap
+        id.includes('t2-oa-basin-light') || // Basin lights
+        name.includes('basin') || name.includes('drain') || name.includes('valve plate') ||
+        name.includes('p-trap') || name.includes('basin light')
       ) {
         categories['basin'].push(item)
       } else if (
-        // Faucet & Sprayer Configuration
+        // Faucet & Sprayer Configuration (706.58-706.64)
         // Faucet kits (706.58-706.60)
-        id.includes('t2-oa-std-faucet') || id.includes('t2-oa-pre-rinse') || id.includes('t2-oa-di-gooseneck') ||
+        partPrefix === '706.58' || partPrefix === '706.59' || partPrefix === '706.60' ||
         // Sprayer kits (706.61-706.64)
+        partPrefix === '706.61' || partPrefix === '706.62' || partPrefix === '706.63' || partPrefix === '706.64' ||
+        // Faucet/sprayer part IDs
+        id.includes('t2-oa-std-faucet') || id.includes('t2-oa-pre-rinse') || id.includes('t2-oa-di-gooseneck') ||
         id.includes('t2-oa-watergun') || id.includes('t2-oa-airgun') ||
         name.includes('faucet kit') || name.includes('sprayer') || name.includes('gun kit')
       ) {
         categories['faucet-sprayer'].push(item)
       } else if (
-        // Control Box (718.* - 719.176-719.184)
+        // Control Box (719.176-719.184)
         category === 'CONTROL_BOX' || 
+        (partPrefix.startsWith('719.') && parseInt(partPrefix.split('.')[1]) >= 176 && parseInt(partPrefix.split('.')[1]) <= 184) ||
         id.includes('t2-ctrl-') ||
         name.includes('control box')
       ) {
         categories['control-box'].push(item)
       } else if (
-        // Accessories (720.* - various T-OA and T2-OA items not covered above)
+        // Accessories (702.*, 703.*, 704.*, 705.*)
         category === 'ACCESSORY' ||
-        (id.includes('t-oa-') || id.includes('t2-oa-')) && 
+        partPrefix.startsWith('702.') || partPrefix.startsWith('703.') || 
+        partPrefix.startsWith('704.') || partPrefix.startsWith('705.') ||
+        ((id.includes('t-oa-') || id.includes('t2-oa-')) && 
         !id.includes('faucet') && !id.includes('gun') && !id.includes('pb-') && !id.includes('ohl-led') &&
-        // Exclude pegboard items from accessories
         !id.includes('t2-adw-pb-') && !id.includes('t2-ohl-mdrd-kit') && 
         !id.includes('t2-adw-pb-perf-kit') && !id.includes('t2-adw-pb-solid-kit') &&
+        !id.includes('basin-light') && !id.includes('ms-1026') &&
         (name.includes('basket') || name.includes('shelf') || name.includes('light') || 
          name.includes('mount') || name.includes('holder') || name.includes('organizer') ||
-         name.includes('bin') || name.includes('drawer'))
+         name.includes('bin') || name.includes('drawer') || name.includes('rack') ||
+         name.includes('dispenser') || name.includes('cover') || name.includes('arm')))
       ) {
         categories['accessories'].push(item)
       } else if (
-        // Service Parts (719.* - boards, sensors, cables, etc.)
-        category === 'SERVICE_PART' || category?.includes('SERVICE') ||
-        id.match(/^\d+$/) || // Numeric IDs are typically service parts
-        name.includes('cable') || name.includes('sensor') || name.includes('board') ||
-        name.includes('pump') || name.includes('upgrade') || 
-        (name.includes('kit') && !name.includes('faucet') && !name.includes('gun') && 
-         // Exclude leg kits
-         !id.includes('t2-lc1-kit') && !id.includes('t2-dl27-kit') && !id.includes('t2-dl14-kit') &&
-         // Exclude pegboard kits
-         !id.includes('t2-adw-pb-') && !id.includes('t2-ohl-mdrd-kit') && 
-         !id.includes('t2-adw-pb-perf-kit') && !id.includes('t2-adw-pb-solid-kit') &&
-         // Exclude power bar kit
-         !id.includes('t2-pwrbar-kit'))
+        // Service Parts (other 719.* excluding control boxes)
+        (category === 'SERVICE_PART' || category?.includes('SERVICE')) ||
+        (partPrefix.startsWith('719.') && 
+         !(parseInt(partPrefix.split('.')[1]) >= 176 && parseInt(partPrefix.split('.')[1]) <= 184)) ||
+        // General service parts logic
+        ((category === 'SERVICE_PART' || category?.includes('SERVICE')) &&
+        !id.includes('t2-dl27') && !id.includes('t2-dl14') && !id.includes('t2-lc1') &&
+        !id.includes('leveling-castor') && !id.includes('seismic-feet') &&
+        !id.includes('castor') && !id.includes('feet') &&
+        !name.includes('leg') && !name.includes('lifter'))
       ) {
         categories['service-parts'].push(item)
       } else {
@@ -371,15 +450,38 @@ export function BOMDebugHelper({ orderConfig, isVisible, onToggleVisibility }: B
   const getCategoryDisplayName = (categoryId: string) => {
     const displayNames: Record<string, string> = {
       'system': '📋 System Items',
-      'sink-body': '🏗️ Sink Body (Legs, Feet, Pegboard)',
+      'sink-body': '🏗️ Sink Body Configuration',
       'basin': '🪣 Basin Configuration',
-      'faucet-sprayer': '🚿 Faucet & Sprayer',
+      'faucet-sprayer': '🚿 Faucet & Sprayer Configuration',
       'control-box': '🎛️ Control Box',
       'accessories': '🔧 Accessories',
       'service-parts': '⚙️ Service Parts',
       'other': '📦 Other Items'
     }
     return displayNames[categoryId] || categoryId.replace('-', ' ').toUpperCase()
+  }
+
+  // Helper function to get parent-child relationship text
+  const getRelationshipText = (item: BOMItem): string => {
+    const id = (item.assemblyId || item.partNumber || '').toLowerCase()
+    const partPrefix = id.match(/^(\d{3}\.\d+)/)?.[1] || ''
+    
+    // Define parent-child relationships based on part numbers
+    if (partPrefix.startsWith('709.')) return 'Sink Body Assembly'
+    if (partPrefix >= '711.95' && partPrefix <= '711.101') return 'Legs & Feet'
+    if (partPrefix >= '715.120' && partPrefix <= '715.127') return 'Pegboard Size'
+    if (partPrefix === '716.128' || partPrefix === '716.130' || partPrefix === '716.131') return 'Pegboard Kit'
+    if (partPrefix === '708.77') return 'Pegboard Color'
+    if (partPrefix >= '713.107' && partPrefix <= '713.109') return 'Basin Type'
+    if (partPrefix >= '712.102' && partPrefix <= '712.106') return 'Basin Size'
+    if (partPrefix === '706.65' || partPrefix === '706.67' || partPrefix === '706.68') return 'Basin Add-on'
+    if (partPrefix >= '706.58' && partPrefix <= '706.60') return 'Faucet Type'
+    if (partPrefix >= '706.61' && partPrefix <= '706.64') return 'Sprayer Type'
+    if (partPrefix >= '719.176' && partPrefix <= '719.184') return 'Control Box Type'
+    if (partPrefix.startsWith('702.') || partPrefix.startsWith('703.') || 
+        partPrefix.startsWith('704.') || partPrefix.startsWith('705.')) return 'Accessory Item'
+    
+    return ''
   }
 
   const getStatusColor = () => {
@@ -438,46 +540,195 @@ export function BOMDebugHelper({ orderConfig, isVisible, onToggleVisibility }: B
     })
   }
 
-  const renderHierarchicalItems = (items: BOMItem[], level = 0): React.ReactNode => {
+  const renderHierarchicalItems = (items: BOMItem[], level = 0, maxLevel = 5): React.ReactNode => {
+    const currentConfig = orderConfig || {}
+    
+    // Prevent infinite recursion
+    if (level > maxLevel) {
+      return null
+    }
+    
     return items.map((item, index) => {
       const itemPrice = item.price || (item.unitPrice && item.quantity ? item.unitPrice * item.quantity : 0)
       const hasMatch = !searchTerm || filteredItems([item]).length > 0
       
-      if (!hasMatch && (!item.children || item.children.length === 0)) {
+      const childItems = item.children || item.components || []
+      const hasChildren = childItems.length > 0
+      
+      // Show item if it matches search or has matching children
+      const hasMatchingChildren = hasChildren && childItems.some(child => {
+        const childMatches = !searchTerm || filteredItems([child]).length > 0
+        return childMatches || (child.children || child.components || []).length > 0
+      })
+      
+      if (!hasMatch && !hasMatchingChildren) {
         return null
       }
 
+      // Check if this is a selected component from configuration
+      const itemId = (item.id || item.assemblyId || item.partNumber || '').toLowerCase()
+      
+      // Helper function to check if basin matches (type or size)
+      const isSelectedBasin = currentConfig.basins?.some((b: any) => {
+        // Check basin type matches
+        const basinType = b.basinType || b.basinTypeId
+        if (basinType) {
+          // Check direct match
+          if (basinType.toLowerCase() === itemId) return true
+          
+          // Check kit assembly ID mapping
+          const kitMappings: Record<string, string> = {
+            'e_sink': 't2-bsn-esk-kit',
+            'e_sink_di': 't2-bsn-esk-di-kit',
+            'e_drain': 't2-bsn-edr-kit'
+          }
+          
+          if (kitMappings[basinType.toLowerCase()] === itemId) return true
+        }
+        
+        // Check basin size matches
+        const basinSize = b.basinSize || b.basinSizePartNumber
+        if (basinSize) {
+          // Check direct match
+          if (basinSize.toLowerCase() === itemId) return true
+          
+          // Check size assembly ID mapping
+          const sizeMappings: Record<string, string> = {
+            '20x20x8': 't2-adw-basin20x20x8',
+            '24x20x8': 't2-adw-basin24x20x8',
+            '24x20x10': 't2-adw-basin24x20x10',
+            '30x20x8': 't2-adw-basin30x20x8',
+            '30x20x10': 't2-adw-basin30x20x10'
+          }
+          
+          if (sizeMappings[basinSize.toLowerCase()] === itemId) return true
+          
+          // Check custom basin format
+          if (basinSize.includes('x') || basinSize.includes('X')) {
+            const customPattern = `720.215.001 t2-adw-basin-${basinSize.toLowerCase()}`
+            if (customPattern === itemId) return true
+          }
+        }
+        
+        return false
+      })
+      
+      const isSelectedComponent = 
+        itemId === currentConfig.legsTypeId?.toLowerCase() ||
+        itemId === currentConfig.feetTypeId?.toLowerCase() ||
+        itemId === currentConfig.controlBoxId?.toLowerCase() ||
+        itemId === currentConfig.pegboardSizePartNumber?.toLowerCase() ||
+        isSelectedBasin ||
+        currentConfig.faucets?.some((f: any) => f.faucetTypeId?.toLowerCase() === itemId) ||
+        currentConfig.sprayers?.some((s: any) => s.sprayerTypeId?.toLowerCase() === itemId)
+
+      const relationshipText = getRelationshipText(item)
+      
+      // Different visual styles based on level
+      const getLevelStyle = (level: number) => {
+        const baseClasses = "p-2 border rounded-md mb-1"
+        const marginLeft = level * 16 // Reduce margin for better space usage
+        
+        if (level === 0) {
+          return {
+            className: `${baseClasses} ${isSelectedComponent ? 'bg-blue-50 border-blue-300' : 'bg-white border-gray-300'}`,
+            marginLeft: 0
+          }
+        } else if (level === 1) {
+          return {
+            className: `${baseClasses} bg-gray-50 border-gray-200`,
+            marginLeft
+          }
+        } else if (level === 2) {
+          return {
+            className: `${baseClasses} bg-gray-100 border-gray-300`,
+            marginLeft
+          }
+        } else {
+          return {
+            className: `${baseClasses} bg-gray-200 border-gray-400`,
+            marginLeft
+          }
+        }
+      }
+      
+      const levelStyle = getLevelStyle(level)
+      
+      // Different indentation symbols based on level
+      const getIndentSymbol = (level: number) => {
+        if (level === 0) return null
+        if (level === 1) return "└─"
+        if (level === 2) return "  └─"
+        return "    └─"
+      }
+      
+      const indentSymbol = getIndentSymbol(level)
+
       return (
         <div key={`${item.id || item.assemblyId || item.partNumber || index}-${level}`}>
-          {hasMatch && (
+          {(hasMatch || level === 0) && (
             <div 
-              className={`p-2 border rounded-md mb-1 ${
-                level > 0 ? 'bg-gray-50 border-gray-200' : 'bg-white border-gray-300'
-              }`}
-              style={{ marginLeft: `${level * 20}px` }}
+              className={levelStyle.className}
+              style={{ marginLeft: `${levelStyle.marginLeft}px` }}
             >
               <div className="flex items-center justify-between gap-2">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    {level > 0 && (
-                      <span className="text-xs text-gray-400">└─</span>
+                    {indentSymbol && (
+                      <span className={`text-xs ${level > 2 ? 'text-gray-600' : 'text-gray-400'}`}>
+                        {indentSymbol}
+                      </span>
                     )}
                     <div className="flex-1 min-w-0">
-                      <p className={`text-sm truncate ${level === 0 ? 'font-medium' : 'font-normal'}`}>
-                        {item.id || item.assemblyId || item.partNumber || 'Unknown ID'}
-                      </p>
-                      <p className="text-xs text-gray-500 truncate">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className={`text-sm truncate ${
+                          level === 0 ? 'font-medium' : level === 1 ? 'font-normal' : 'font-light'
+                        } ${isSelectedComponent && level === 0 ? 'text-blue-700' : ''}`}>
+                          {item.id || item.assemblyId || item.partNumber || 'Unknown ID'}
+                        </p>
+                        {relationshipText && level < 3 && (
+                          <Badge variant="secondary" className="text-xs">
+                            {relationshipText}
+                          </Badge>
+                        )}
+                        {level > 0 && (
+                          <Badge variant="outline" className="text-xs">
+                            L{level}
+                          </Badge>
+                        )}
+                      </div>
+                      <p className={`text-xs truncate ${
+                        level > 2 ? 'text-gray-600' : 'text-gray-500'
+                      }`}>
                         {item.name || item.description || 'No description'}
                       </p>
+                      {isSelectedComponent && level === 0 && (
+                        <p className="text-xs text-blue-600 font-medium">
+                          ✓ Selected Component
+                        </p>
+                      )}
+                      {hasChildren && (
+                        <p className={`text-xs ${
+                          level === 0 ? 'text-purple-600' : 
+                          level === 1 ? 'text-purple-500' : 'text-purple-400'
+                        }`}>
+                          → Contains {childItems.length} component{childItems.length > 1 ? 's' : ''}
+                          {level < 2 && childItems.some(child => (child.children || child.components || []).length > 0) && (
+                            <span className="ml-1">(with sub-components)</span>
+                          )}
+                        </p>
+                      )}
                     </div>
                   </div>
                 </div>
                 <div className="flex flex-col items-end gap-1">
-                  <Badge variant="outline" className="text-xs">
+                  <Badge variant={isSelectedComponent && level === 0 ? "default" : "outline"} className="text-xs">
                     Qty: {item.quantity || 1}
                   </Badge>
                   {showPrices && itemPrice > 0 && (
-                    <div className="text-xs text-green-600 font-medium">
+                    <div className={`text-xs font-medium ${
+                      level === 0 ? 'text-green-600' : 'text-green-500'
+                    }`}>
                       ${itemPrice.toFixed(2)}
                     </div>
                   )}
@@ -485,9 +736,17 @@ export function BOMDebugHelper({ orderConfig, isVisible, onToggleVisibility }: B
               </div>
             </div>
           )}
-          {item.children && item.children.length > 0 && (
+          {hasChildren && level < maxLevel && (
             <div className="mt-1">
-              {renderHierarchicalItems(item.children, level + 1)}
+              {renderHierarchicalItems(childItems, level + 1, maxLevel)}
+            </div>
+          )}
+          {level >= maxLevel && hasChildren && (
+            <div 
+              className="p-1 border border-dashed border-gray-300 rounded text-xs text-gray-500 italic"
+              style={{ marginLeft: `${(level + 1) * 16}px` }}
+            >
+              ... {childItems.length} more sub-component{childItems.length > 1 ? 's' : ''} (max depth reached)
             </div>
           )}
         </div>
@@ -510,6 +769,7 @@ export function BOMDebugHelper({ orderConfig, isVisible, onToggleVisibility }: B
   }
 
   const categorizedItems = bomData ? categorizeItems(filteredItems(bomData.items)) : {}
+  const currentConfig = orderConfig || {}
 
   return (
     <Card className="fixed top-4 right-4 w-[450px] max-h-[90vh] z-50 shadow-xl border-2">
@@ -538,6 +798,29 @@ export function BOMDebugHelper({ orderConfig, isVisible, onToggleVisibility }: B
                 >
                   {viewMode === 'categorized' ? <TreePine className="w-4 h-4" /> : <List className="w-4 h-4" />}
                 </Button>
+                {viewMode === 'hierarchical' && (
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setMaxDepth(Math.max(1, maxDepth - 1))}
+                      disabled={maxDepth <= 1}
+                      title="Decrease depth"
+                    >
+                      <span className="text-xs">-</span>
+                    </Button>
+                    <span className="text-xs px-1 min-w-[20px] text-center">{maxDepth}</span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setMaxDepth(Math.min(6, maxDepth + 1))}
+                      disabled={maxDepth >= 6}
+                      title="Increase depth"
+                    >
+                      <span className="text-xs">+</span>
+                    </Button>
+                  </div>
+                )}
                 <Button
                   variant="ghost"
                   size="sm"
@@ -648,10 +931,16 @@ export function BOMDebugHelper({ orderConfig, isVisible, onToggleVisibility }: B
               {/* View Mode Toggle */}
               {viewMode === 'hierarchical' && bomData.hierarchical && bomData.hierarchical.length > 0 ? (
                 <div className="space-y-2">
-                  <div className="text-sm font-medium text-muted-foreground mb-2">
-                    Hierarchical View
+                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-md mb-3">
+                    <p className="text-sm font-medium text-blue-800 mb-1">Parent → Child → Grandchild Hierarchy</p>
+                    <p className="text-xs text-blue-600">
+                      Shows complete component relationships including sub-assemblies and individual parts (depth: {maxDepth} levels).
+                    </p>
+                    <p className="text-xs text-blue-500 mt-1">
+                      Use +/- controls to adjust hierarchy depth. L1, L2, L3+ badges show component levels.
+                    </p>
                   </div>
-                  {renderHierarchicalItems(bomData.hierarchical)}
+                  {renderHierarchicalItems(bomData.hierarchical, 0, maxDepth)}
                 </div>
               ) : (
                 /* BOM Categories */
@@ -681,12 +970,71 @@ export function BOMDebugHelper({ orderConfig, isVisible, onToggleVisibility }: B
                         const isPart = item.isPart || item.category === 'PART'
                         
                         const itemPrice = item.price || (item.unitPrice && item.quantity ? item.unitPrice * item.quantity : 0)
+                        const relationshipText = getRelationshipText(item)
+                        
+                        // Check if this is a selected component
+                        const itemId = (item.id || item.assemblyId || item.partNumber || '').toLowerCase()
+                        
+                        // Helper function to check if basin matches (type or size)
+                        const isSelectedBasin = currentConfig.basins?.some((b: any) => {
+                          // Check basin type matches
+                          const basinType = b.basinType || b.basinTypeId
+                          if (basinType) {
+                            // Check direct match
+                            if (basinType.toLowerCase() === itemId) return true
+                            
+                            // Check kit assembly ID mapping
+                            const kitMappings: Record<string, string> = {
+                              'e_sink': 't2-bsn-esk-kit',
+                              'e_sink_di': 't2-bsn-esk-di-kit',
+                              'e_drain': 't2-bsn-edr-kit'
+                            }
+                            
+                            if (kitMappings[basinType.toLowerCase()] === itemId) return true
+                          }
+                          
+                          // Check basin size matches
+                          const basinSize = b.basinSize || b.basinSizePartNumber
+                          if (basinSize) {
+                            // Check direct match
+                            if (basinSize.toLowerCase() === itemId) return true
+                            
+                            // Check size assembly ID mapping
+                            const sizeMappings: Record<string, string> = {
+                              '20x20x8': 't2-adw-basin20x20x8',
+                              '24x20x8': 't2-adw-basin24x20x8',
+                              '24x20x10': 't2-adw-basin24x20x10',
+                              '30x20x8': 't2-adw-basin30x20x8',
+                              '30x20x10': 't2-adw-basin30x20x10'
+                            }
+                            
+                            if (sizeMappings[basinSize.toLowerCase()] === itemId) return true
+                            
+                            // Check custom basin format
+                            if (basinSize.includes('x') || basinSize.includes('X')) {
+                              const customPattern = `720.215.001 t2-adw-basin-${basinSize.toLowerCase()}`
+                              if (customPattern === itemId) return true
+                            }
+                          }
+                          
+                          return false
+                        })
+                        
+                        const isSelectedComponent = 
+                          itemId === currentConfig.legsTypeId?.toLowerCase() ||
+                          itemId === currentConfig.feetTypeId?.toLowerCase() ||
+                          itemId === currentConfig.controlBoxId?.toLowerCase() ||
+                          itemId === currentConfig.pegboardSizePartNumber?.toLowerCase() ||
+                          isSelectedBasin ||
+                          currentConfig.faucets?.some((f: any) => f.faucetTypeId?.toLowerCase() === itemId) ||
+                          currentConfig.sprayers?.some((s: any) => s.sprayerTypeId?.toLowerCase() === itemId)
                         
                         return (
                           <div 
                             key={`${item.id || item.assemblyId || item.partNumber || index}`} 
                             className={`p-2 border rounded-md ${
-                              isChild ? 'bg-gray-50 border-gray-200 ml-4' : 'bg-white border-gray-300'
+                              isChild ? 'bg-gray-50 border-gray-200 ml-4' : 
+                              isSelectedComponent ? 'bg-blue-50 border-blue-300' : 'bg-white border-gray-300'
                             }`}
                             style={{ marginLeft: `${indentLevel * 16}px` }}
                           >
@@ -699,9 +1047,18 @@ export function BOMDebugHelper({ orderConfig, isVisible, onToggleVisibility }: B
                                     </span>
                                   )}
                                   <div className="flex-1 min-w-0">
-                                    <p className={`text-sm truncate ${isChild ? 'font-normal' : 'font-medium'}`}>
-                                      {item.id || item.assemblyId || item.partNumber || 'Unknown ID'}
-                                    </p>
+                                    <div className="flex items-center gap-2">
+                                      <p className={`text-sm truncate ${isChild ? 'font-normal' : 'font-medium'} ${
+                                        isSelectedComponent ? 'text-blue-700' : ''
+                                      }`}>
+                                        {item.id || item.assemblyId || item.partNumber || 'Unknown ID'}
+                                      </p>
+                                      {relationshipText && (
+                                        <Badge variant="secondary" className="text-xs">
+                                          {relationshipText}
+                                        </Badge>
+                                      )}
+                                    </div>
                                     {item.partNumber && item.partNumber !== item.id && (
                                       <p className="text-xs text-green-600 truncate">
                                         Part: {item.partNumber}
@@ -715,17 +1072,22 @@ export function BOMDebugHelper({ orderConfig, isVisible, onToggleVisibility }: B
                                         {isPart ? 'Part' : 'Assembly'} • {item.category}
                                       </p>
                                     )}
+                                    {isSelectedComponent && !isChild && (
+                                      <p className="text-xs text-blue-600 font-medium">
+                                        ✓ Selected Component
+                                      </p>
+                                    )}
                                   </div>
                                 </div>
                               </div>
                               <div className="flex flex-col items-end gap-1">
                                 <div className="flex items-center gap-2">
-                                  {item.hasChildren && (
+                                  {(item.hasChildren || (item.components && item.components.length > 0)) && (
                                     <Badge variant="secondary" className="text-xs">
-                                      {item.children?.length || 0} items
+                                      {item.children?.length || item.components?.length || 0} items
                                     </Badge>
                                   )}
-                                  <Badge variant="outline" className="text-xs">
+                                  <Badge variant={isSelectedComponent ? "default" : "outline"} className="text-xs">
                                     Qty: {item.quantity || 1}
                                   </Badge>
                                 </div>
