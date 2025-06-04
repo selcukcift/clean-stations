@@ -89,12 +89,47 @@ async function getSinkBodyAssembly(length) {
 async function getLegTypes() {
     const legOptions = [
         // Height Adjustable
-        { assemblyId: 'T2-DL27-KIT', name: 'T2-DL27-KIT', type: 'HEIGHT_ADJUSTABLE', legType: 'DL27' },
-        { assemblyId: 'T2-DL14-KIT', name: 'T2-DL14-KIT', type: 'HEIGHT_ADJUSTABLE', legType: 'DL14' },
-        { assemblyId: 'T2-LC1-KIT', name: 'T2-LC1-KIT', type: 'HEIGHT_ADJUSTABLE', legType: 'LC1' },
+        { 
+            assemblyId: 'T2-DL27-KIT', 
+            name: 'T2-DL27-KIT', 
+            displayName: 'Height Adjustable - DL27 (Dual Column, Heavy Duty)',
+            type: 'HEIGHT_ADJUSTABLE', 
+            legType: 'DL27',
+            description: 'Dual column height adjustable legs with 27mm stroke, heavy duty capacity'
+        },
+        { 
+            assemblyId: 'T2-DL14-KIT', 
+            name: 'T2-DL14-KIT', 
+            displayName: 'Height Adjustable - DL14 (Dual Column, Standard)',
+            type: 'HEIGHT_ADJUSTABLE', 
+            legType: 'DL14',
+            description: 'Dual column height adjustable legs with 14mm stroke, standard capacity'
+        },
+        { 
+            assemblyId: 'T2-LC1-KIT', 
+            name: 'T2-LC1-KIT', 
+            displayName: 'Height Adjustable - LC1 (Triple Column)',
+            type: 'HEIGHT_ADJUSTABLE', 
+            legType: 'LC1',
+            description: 'Triple column height adjustable legs for maximum stability'
+        },
         // Fixed Height
-        { assemblyId: 'T2-DL27-FH-KIT', name: 'T2-DL27-FH-KIT', type: 'FIXED_HEIGHT', legType: 'DL27' },
-        { assemblyId: 'T2-DL14-FH-KIT', name: 'T2-DL14-FH-KIT', type: 'FIXED_HEIGHT', legType: 'DL14' }
+        { 
+            assemblyId: 'T2-DL27-FH-KIT', 
+            name: 'T2-DL27-FH-KIT', 
+            displayName: 'Fixed Height - DL27 (Heavy Duty)',
+            type: 'FIXED_HEIGHT', 
+            legType: 'DL27',
+            description: 'Fixed height legs, heavy duty capacity, DL27 compatible'
+        },
+        { 
+            assemblyId: 'T2-DL14-FH-KIT', 
+            name: 'T2-DL14-FH-KIT', 
+            displayName: 'Fixed Height - DL14 (Standard)',
+            type: 'FIXED_HEIGHT', 
+            legType: 'DL14',
+            description: 'Fixed height legs, standard capacity, DL14 compatible'
+        }
     ];
     
     // Verify assemblies exist in database
@@ -121,8 +156,20 @@ async function getLegTypes() {
  */
 async function getFeetTypes() {
     const feetOptions = [
-        { assemblyId: 'T2-LEVELING-CASTOR-475', name: 'T2-LEVELING-CASTOR-475', type: 'LOCK_LEVELING_CASTERS' },
-        { assemblyId: 'T2-SEISMIC-FEET', name: 'T2-SEISMIC-FEET', type: 'SS_ADJUSTABLE_SEISMIC_FEET' }
+        { 
+            assemblyId: 'T2-LEVELING-CASTOR-475', 
+            name: 'T2-LEVELING-CASTOR-475', 
+            displayName: 'Lock & Leveling Casters',
+            type: 'LOCK_LEVELING_CASTERS',
+            description: 'Heavy duty casters with locking mechanism and leveling capability (2200 lbs capacity)'
+        },
+        { 
+            assemblyId: 'T2-SEISMIC-FEET', 
+            name: 'T2-SEISMIC-FEET', 
+            displayName: 'Stainless Steel Adjustable Seismic Feet',
+            type: 'SS_ADJUSTABLE_SEISMIC_FEET',
+            description: 'Stainless steel adjustable feet designed for seismic compliance'
+        }
     ];
     
     const assemblyIds = feetOptions.map(opt => opt.assemblyId);

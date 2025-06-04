@@ -10,12 +10,24 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `npm run dev:backend` - Start only Node.js backend on port 3001
 - `npm run build` - Build Next.js application for production
 - `npm run lint` - Run ESLint with Next.js configuration
-- `npm test` - No tests configured yet
+
+### Testing Commands
+- `npm test` - Run Jest unit and integration tests
+- `npm run test:watch` - Run tests in watch mode for development
+- `npm run test:coverage` - Generate test coverage report
+- `npm run test:unit` - Run only unit tests (components, stores, lib)
+- `npm run test:integration` - Run only API integration tests
+- `npm run test:e2e` - Run Playwright end-to-end tests
+- `npm run test:e2e:ui` - Run E2E tests with interactive UI
+- `npm run test:e2e:debug` - Debug E2E tests step by step
+- `npm run test:all` - Run all test suites (Jest + Playwright)
 
 ### Database Operations
 - `npm run prisma:generate` - Generate Prisma client after schema changes
 - `npm run prisma:migrate` - Create and apply database migrations
 - `npm run prisma:seed` - Seed database with initial data from scripts/seed.js
+- `node scripts/seedQcTemplates.js` - Seed QC form templates
+- `node scripts/create-test-users.js` - Create test users for development
 
 ### Production
 - `npm start` - Start both frontend and backend in production mode
@@ -208,4 +220,81 @@ Several files contain legacy frontend logic preserved for reference:
 - `bom-generator.js` - BOM generation
 - `index.html`, `styles.css` - Legacy UI
 
-<!-- Revision updated: Updated deployment and instructions on 2023-11-01 -->
+## Testing Architecture
+
+### Test Setup
+- **Jest Configuration**: `jest.config.js` - Next.js-optimized Jest setup with TypeScript
+- **Test Utils**: `test-utils/index.tsx` - Custom render with SessionProvider wrapper
+- **Coverage**: Collects from `app/`, `components/`, `lib/`, `stores/` directories
+
+### E2E Testing with Playwright
+- **Configuration**: `playwright.config.ts`
+- **Base URL**: `http://localhost:3005`
+- **Browsers**: Chromium, Firefox, WebKit
+- **Auth Setup**: `e2e/auth.setup.ts` creates persistent auth state
+- **Auth Storage**: `playwright/.auth/user.json`
+- **Traces**: Saved on failure for debugging
+
+### Testing Patterns
+```typescript
+// Unit tests - use custom render
+import { render } from '@/test-utils'
+render(<Component />) // Auto-wrapped with providers
+
+// API tests - use node-mocks-http
+import { createMocks } from 'node-mocks-http'
+const { req } = createMocks({ method: 'POST', body: data })
+
+// E2E tests - use authenticated state
+test.use({ storageState: 'playwright/.auth/user.json' })
+```
+
+## API Response Standards
+
+All API endpoints follow a consistent response format:
+```typescript
+// Success response
+{ success: true, data: { /* response data */ } }
+
+// Error response  
+{ success: false, error: "Error message" }
+```
+
+## Critical Middleware
+
+### Route Protection (`middleware.ts`)
+- Protects routes requiring authentication: `/dashboard`, `/orders/*`, `/service-orders/*`
+- Redirects unauthenticated users to `/login`
+- Redirects authenticated users from `/` to `/dashboard`
+- Uses NextAuth JWT tokens for verification
+
+### API Authentication Pattern
+```typescript
+// Server-side route protection
+import { getAuthUser } from '@/lib/auth';
+
+export async function GET() {
+  const user = await getAuthUser();
+  if (!user) {
+    return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+  }
+  // Continue with authenticated logic
+}
+```
+
+## Form Validation Patterns
+
+Uses Zod + React Hook Form throughout:
+```typescript
+// Define schema
+const schema = z.object({
+  field: z.string().min(3)
+});
+
+// Use in component
+const form = useForm({
+  resolver: zodResolver(schema)
+});
+```
+
+Central validation schemas: `lib/qcValidationSchemas.ts`

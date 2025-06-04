@@ -47,7 +47,21 @@
       "Bash(npm run test:unit:*)",
       "Bash(npm run test:integration:*)",
       "Bash(npx playwright:*)",
-      "Bash(jq:*)"
+      "Bash(jq:*)",
+      "Bash(systemctl status:*)",
+      "Bash(sudo apt:*)",
+      "Bash(sudo apt upgrade:*)",
+      "Bash(pg_config:*)",
+      "Bash(apt list:*)",
+      "Bash(chmod:*)",
+      "Bash(dos2unix:*)",
+      "Bash(sed:*)",
+      "Bash(sudo pg_lsclusters:*)",
+      "Bash(journalctl:*)",
+      "Bash(sudo -u postgres createdb:*)",
+      "Bash(sudo -u postgres psql:*)",
+      "Bash(sudo cat:*)",
+      "Bash(kill:*)"
     ],
     "deny": []
   },
