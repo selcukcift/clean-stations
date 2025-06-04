@@ -1,51 +1,31 @@
 {
   "mcpServers": {
     "sequential-thinking": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "@modelcontextprotocol/server-sequential-thinking"
-      ]
+      "command": "mcp-server-sequential-thinking"
     },
     "postgres": {
-      "command": "npx",
+      "command": "mcp-server-postgres",
       "args": [
-        "-y",
-        "@modelcontextprotocol/server-postgres",
-        "postgresql://localhost/torvan_db"
+        "postgresql://postgres:postgres@localhost:5432/torvan-db"
       ]
     },
     "filesystem": {
-      "command": "npx",
+      "command": "mcp-server-filesystem",
       "args": [
-        "-y",
-        "@modelcontextprotocol/server-filesystem",
-        "D:\\Clean-stations"
+        "/media/selcuk/project files/Clean-stations"
       ]
     },
     "memory": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "@modelcontextprotocol/server-memory"
-      ]
+      "command": "mcp-server-memory"
     },
     "brave-search": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "@modelcontextprotocol/server-brave-search"
-      ],
+      "command": "mcp-server-brave-search",
       "env": {
         "BRAVE_API_KEY": "BSAe7FiTb62lN_g3Qctb-L97QJIqkDF"
       }
     },
     "puppeteer": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "@modelcontextprotocol/server-puppeteer"
-      ]
+      "command": "mcp-server-puppeteer"
     }
   }
 }

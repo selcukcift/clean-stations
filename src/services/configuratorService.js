@@ -92,7 +92,7 @@ async function getLegTypes() {
         { 
             assemblyId: 'T2-DL27-KIT', 
             name: 'T2-DL27-KIT', 
-            displayName: 'Height Adjustable - DL27 (Dual Column, Heavy Duty)',
+            displayName: 'Height Adjustable - DL27',
             type: 'HEIGHT_ADJUSTABLE', 
             legType: 'DL27',
             description: 'Dual column height adjustable legs with 27mm stroke, heavy duty capacity'
@@ -100,7 +100,7 @@ async function getLegTypes() {
         { 
             assemblyId: 'T2-DL14-KIT', 
             name: 'T2-DL14-KIT', 
-            displayName: 'Height Adjustable - DL14 (Dual Column, Standard)',
+            displayName: 'Height Adjustable - DL14',
             type: 'HEIGHT_ADJUSTABLE', 
             legType: 'DL14',
             description: 'Dual column height adjustable legs with 14mm stroke, standard capacity'
@@ -108,7 +108,7 @@ async function getLegTypes() {
         { 
             assemblyId: 'T2-LC1-KIT', 
             name: 'T2-LC1-KIT', 
-            displayName: 'Height Adjustable - LC1 (Triple Column)',
+            displayName: 'Height Adjustable - LC1',
             type: 'HEIGHT_ADJUSTABLE', 
             legType: 'LC1',
             description: 'Triple column height adjustable legs for maximum stability'
@@ -117,7 +117,7 @@ async function getLegTypes() {
         { 
             assemblyId: 'T2-DL27-FH-KIT', 
             name: 'T2-DL27-FH-KIT', 
-            displayName: 'Fixed Height - DL27 (Heavy Duty)',
+            displayName: 'Fixed Height - DL27',
             type: 'FIXED_HEIGHT', 
             legType: 'DL27',
             description: 'Fixed height legs, heavy duty capacity, DL27 compatible'
@@ -125,7 +125,7 @@ async function getLegTypes() {
         { 
             assemblyId: 'T2-DL14-FH-KIT', 
             name: 'T2-DL14-FH-KIT', 
-            displayName: 'Fixed Height - DL14 (Standard)',
+            displayName: 'Fixed Height - DL14',
             type: 'FIXED_HEIGHT', 
             legType: 'DL14',
             description: 'Fixed height legs, standard capacity, DL14 compatible'

@@ -61,9 +61,31 @@
       "Bash(sudo -u postgres createdb:*)",
       "Bash(sudo -u postgres psql:*)",
       "Bash(sudo cat:*)",
-      "Bash(kill:*)"
+      "Bash(kill:*)",
+      "Bash(createdb:*)",
+      "Bash(pg_lsclusters:*)",
+      "Bash(bash:*)",
+      "Bash(DATABASE_URL=\"postgresql://postgres@localhost:5432/torvan-db?schema=public\" npm run prisma:migrate)",
+      "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/torvan-db?schema=public\" npm run prisma:migrate)",
+      "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/torvan-db?schema=public\" node scripts/seedQcTemplates.js)",
+      "Bash(python3:*)",
+      "Bash(PGPASSWORD=postgres psql:*)",
+      "Bash(npx @modelcontextprotocol/server-sequential-thinking:*)",
+      "Bash(npx @modelcontextprotocol/server-postgres:*)",
+      "Bash(npx @modelcontextprotocol/server-filesystem:*)",
+      "Bash(npx @modelcontextprotocol/server-memory:*)",
+      "Bash(npx @modelcontextprotocol/server-brave-search:*)",
+      "Bash(npx @modelcontextprotocol/server-puppeteer:*)",
+      "Bash(timeout:*)",
+      "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/torvan-db?schema=public\" node -e \"\nconst { PrismaClient } = require(''@prisma/client'');\nconst prisma = new PrismaClient();\n\nasync function testConnection() {\n  try {\n    console.log(''Testing PostgreSQL connection on port 5432...'');\n    \n    await prisma.$connect();\n    console.log(''✅ Database connection successful'');\n    \n    const userCount = await prisma.user.count();\n    console.log(\\`✅ Found ${userCount} users\\`);\n    \n    const assemblyCount = await prisma.assembly.count();\n    console.log(\\`✅ Found ${assemblyCount} assemblies\\`);\n    \n    // Check some key assemblies\n    const keyAssemblies = await prisma.assembly.findMany({\n      where: { \n        assemblyId: { \n          in: [''T2-BODY-48-60-HA'', ''T2-DL27-KIT'', ''T2-LEVELING-CASTOR-475''] \n        } \n      },\n      select: { assemblyId: true, name: true }\n    });\n    console.log(\\`✅ Found ${keyAssemblies.length} key assemblies:\\`);\n    keyAssemblies.forEach(a => console.log(\\`  - ${a.assemblyId}: ${a.name}\\`));\n    \n  } catch (error) {\n    console.error(''❌ Database connection failed:'', error.message);\n  } finally {\n    await prisma.$disconnect();\n  }\n}\n\ntestConnection();\n\")",
+      "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/torvan-db?schema=public\" node -e \"\nconst { PrismaClient } = require(''@prisma/client'');\nconst prisma = new PrismaClient();\n\nasync function checkAssemblies() {\n  try {\n    // Check key assemblies that match document requirements\n    const requiredAssemblies = [\n      ''T2-BODY-48-60-HA'', ''T2-BODY-61-72-HA'', ''T2-BODY-73-120-HA'',\n      ''T2-DL27-KIT'', ''T2-DL14-KIT'', ''T2-LC1-KIT'', ''T2-DL27-FH-KIT'', ''T2-DL14-FH-KIT'',\n      ''T2-LEVELING-CASTOR-475'', ''T2-SEISMIC-FEET'',\n      ''T2-BSN-ESK-KIT'', ''T2-BSN-EDR-KIT'', ''T2-BSN-ESK-DI-KIT'',\n      ''T2-CTRL-EDR1'', ''T2-CTRL-ESK1'', ''T2-CTRL-EDR1-ESK1''\n    ];\n    \n    const found = await prisma.assembly.findMany({\n      where: { assemblyId: { in: requiredAssemblies } },\n      select: { assemblyId: true, name: true }\n    });\n    \n    console.log(''=== FOUND ASSEMBLIES ==='');\n    found.forEach(a => console.log(\\`✅ ${a.assemblyId}: ${a.name}\\`));\n    \n    console.log(''\\n=== MISSING ASSEMBLIES ==='');\n    const foundIds = found.map(a => a.assemblyId);\n    const missing = requiredAssemblies.filter(id => !foundIds.includes(id));\n    missing.forEach(id => console.log(\\`❌ ${id}\\`));\n    \n  } catch (error) {\n    console.error(''Error:'', error.message);\n  } finally {\n    await prisma.$disconnect();\n  }\n}\n\ncheckAssemblies();\n\")",
+      "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/torvan-db?schema=public\" node -e \"\nconst { PrismaClient } = require(''@prisma/client'');\nconst prisma = new PrismaClient();\n\nasync function checkAssemblies() {\n  try {\n    const requiredAssemblies = [\n      ''T2-BODY-48-60-HA'', ''T2-BODY-61-72-HA'', ''T2-BODY-73-120-HA'',\n      ''T2-DL27-KIT'', ''T2-DL14-KIT'', ''T2-LC1-KIT'', ''T2-DL27-FH-KIT'', ''T2-DL14-FH-KIT'',\n      ''T2-LEVELING-CASTOR-475'', ''T2-SEISMIC-FEET'',\n      ''T2-BSN-ESK-KIT'', ''T2-BSN-EDR-KIT'', ''T2-BSN-ESK-DI-KIT'',\n      ''T2-CTRL-EDR1'', ''T2-CTRL-ESK1'', ''T2-CTRL-EDR1-ESK1''\n    ];\n    \n    const found = await prisma.assembly.findMany({\n      where: { assemblyId: { in: requiredAssemblies } },\n      select: { assemblyId: true, name: true }\n    });\n    \n    console.log(''=== FOUND ASSEMBLIES ==='');\n    found.forEach(a => console.log(''✅ '' + a.assemblyId + '': '' + a.name));\n    \n    console.log('''');\n    console.log(''=== MISSING ASSEMBLIES ==='');\n    const foundIds = found.map(a => a.assemblyId);\n    const missing = requiredAssemblies.filter(id => !foundIds.includes(id));\n    missing.forEach(id => console.log(''❌ '' + id));\n    \n  } catch (error) {\n    console.error(''Error:'', error.message);\n  } finally {\n    await prisma.$disconnect();\n  }\n}\n\ncheckAssemblies();\n\")",
+      "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/torvan-db?schema=public\" node check-assemblies.js)",
+      "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/torvan-db?schema=public\" node check-part-numbers.js)",
+      "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/torvan-db?schema=public\" node update-part-numbers.js)",
+      "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/torvan-db?schema=public\" node add-missing-assemblies.js)"
     ],
     "deny": []
   },
-  "enableAllProjectMcpServers": false
+  "enableAllProjectMcpServers": true
 }

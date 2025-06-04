@@ -356,7 +356,7 @@ async function generateBOMForOrder(orderData) {
             else if (actualLength >= 73 && actualLength <= 120) sinkBodyAssemblyId = 'T2-BODY-73-120-HA'; // T2-BODY-73-120-HA
             
             if (sinkBodyAssemblyId) {
-                await addItemToBOMRecursive(sinkBodyAssemblyId, 1, 'SINK_BODY', bom, new Set());
+                await addItemToBOMWithPartNumber(sinkBodyAssemblyId, 1, 'SINK_BODY', bom, new Set());
             } else {
                 console.warn(`No sink body assembly found for length: ${actualLength}`);
             }
@@ -372,35 +372,48 @@ async function generateBOMForOrder(orderData) {
         // 3. Legs Kit (handle both legTypeId and legsTypeId)
         const actualLegTypeId = legTypeId || legsTypeId;
         if (actualLegTypeId) {
-            await addItemToBOMRecursive(actualLegTypeId, 1, 'LEGS', bom, new Set());
+            await addItemToBOMWithPartNumber(actualLegTypeId, 1, 'LEGS', bom, new Set());
         }
 
         // 4. Feet Type
         if (feetTypeId) {
-            await addItemToBOMRecursive(feetTypeId, 1, 'FEET', bom, new Set());
+            await addItemToBOMWithPartNumber(feetTypeId, 1, 'FEET', bom, new Set());
         }
         
-        // 5. Pegboard
+        // 5. Pegboard (Updated with document logic)
         if (pegboard) {
+            // MANDATORY: Overhead light kit (Document line 113)
+            await addItemToBOMWithPartNumber('T2-OHL-MDRD-KIT', 1, 'PEGBOARD_MANDATORY', bom, new Set());
+            
+            // Pegboard type selection
             if (pegboardTypeId) {
-                await addItemToBOMRecursive(pegboardTypeId, 1, 'PEGBOARD_TYPE_KIT', bom, new Set());
+                // MANDATORY based on pegboard type (Document lines 113-114)
+                if (pegboardTypeId === 'PERFORATED') {
+                    await addItemToBOMWithPartNumber('T2-ADW-PB-PERF-KIT', 1, 'PEGBOARD_MANDATORY', bom, new Set());
+                } else if (pegboardTypeId === 'SOLID') {
+                    await addItemToBOMWithPartNumber('T2-ADW-PB-SOLID-KIT', 1, 'PEGBOARD_MANDATORY', bom, new Set());
+                }
             }
-
+            
+            // Color selection (Document line 74)
+            // Note: Color selection should be handled in UI, adding color kit if selected
+            // This would be passed as a separate field in the configuration
+            
+            // Pegboard size logic
             if (pegboardSizePartNumber) {
-                // Check if it's a custom part number pattern
                 if (pegboardSizePartNumber.startsWith('720.215.002 T2-ADW-PB-')) {
-                    // Attempt to find it in the Part table
+                    // Custom pegboard size
                     let partDetails = await prisma.part.findUnique({ where: { partId: pegboardSizePartNumber } });
                     if (!partDetails) {
-                        // If not in DB, add as a custom part placeholder
                         partDetails = {
                             partId: pegboardSizePartNumber,
                             name: `Custom Pegboard Panel ${pegboardSizePartNumber.substring('720.215.002 T2-ADW-PB-'.length)}`,
-                            type: 'CUSTOM_PART_AUTOGEN' // Indicate it was auto-generated
+                            type: 'CUSTOM_PART_AUTOGEN'
                         };
                     }
                     bom.push({
                         id: partDetails.partId,
+                        partNumber: pegboardSizePartNumber,
                         name: partDetails.name,
                         quantity: 1,
                         category: 'PEGBOARD_PANEL',
@@ -409,11 +422,16 @@ async function generateBOMForOrder(orderData) {
                         isCustom: true
                     });
                 } else {
-                    // Assume it's a standard assembly ID for the pegboard size/panel
-                    await addItemToBOMRecursive(pegboardSizePartNumber, 1, 'PEGBOARD_SIZE_ASSEMBLY', bom, new Set());
+                    // Standard pegboard size assembly
+                    await addItemToBOMWithPartNumber(pegboardSizePartNumber, 1, 'PEGBOARD_SIZE', bom, new Set());
+                }
+            } else {
+                // Auto-select pegboard size based on sink length (Document line 88)
+                const pegboardSizeId = getPegboardSizeByLength(actualLength);
+                if (pegboardSizeId) {
+                    await addItemToBOMWithPartNumber(pegboardSizeId, 1, 'PEGBOARD_SIZE_AUTO', bom, new Set());
                 }
             }
-            await addItemToBOMRecursive('T2-OHL-MDRD-KIT', 1, 'PEGBOARD_OHL', bom, new Set());
         }
 
         // 6. Basin Assemblies
@@ -454,34 +472,39 @@ async function generateBOMForOrder(orderData) {
             }
         }
         
-        // 7. Control Box
-        if (controlBoxId) {
-            // For control boxes without defined components, dynamically add them
+        // 7. Control Box (Auto-select based on basin types)
+        const autoControlBoxId = controlBoxId || getAutoControlBoxId(basins);
+        if (autoControlBoxId) {
             const controlBoxesWithDynamicComponents = [
                 'T2-CTRL-EDR1', 'T2-CTRL-ESK1', 'T2-CTRL-EDR1-ESK1',
                 'T2-CTRL-EDR2', 'T2-CTRL-ESK2', 'T2-CTRL-EDR1-ESK2',
                 'T2-CTRL-EDR2-ESK1', 'T2-CTRL-EDR3', 'T2-CTRL-ESK3'
             ];
             
-            if (controlBoxesWithDynamicComponents.includes(controlBoxId)) {
-                // Add control box with dynamically determined components
-                await addControlBoxWithDynamicComponents(controlBoxId, 1, 'CONTROL_BOX', bom, new Set());
+            if (controlBoxesWithDynamicComponents.includes(autoControlBoxId)) {
+                await addControlBoxWithDynamicComponents(autoControlBoxId, 1, 'CONTROL_BOX', bom, new Set());
             } else {
-                await addItemToBOMRecursive(controlBoxId, 1, 'CONTROL_BOX', bom, new Set());
+                await addItemToBOMWithPartNumber(autoControlBoxId, 1, 'CONTROL_BOX', bom, new Set());
             }
         }
 
-        // 8. Faucets (handle both single and array format)
+        // 8. Faucets (handle both single and array format + auto-selection)
+        // Auto-select faucets for E-Sink DI basins
+        const autoSelectedFaucets = getAutoSelectedFaucets(basins);
+        for (const autoFaucet of autoSelectedFaucets) {
+            await addItemToBOMWithPartNumber(autoFaucet.faucetTypeId, autoFaucet.quantity, 'FAUCET_AUTO', bom, new Set());
+        }
+        
+        // User-selected faucets
         if (faucets && faucets.length > 0) {
-            // New array format
             for (const faucet of faucets) {
                 if (faucet.faucetTypeId) {
-                    await addItemToBOMRecursive(faucet.faucetTypeId, 1, 'FAUCET_KIT', bom, new Set());
+                    await addItemToBOMWithPartNumber(faucet.faucetTypeId, 1, 'FAUCET_KIT', bom, new Set());
                 }
             }
         } else if (faucetTypeId) {
             // Legacy single faucet format
-            await addItemToBOMRecursive(faucetTypeId, faucetQuantity || 1, 'FAUCET_KIT', bom, new Set());
+            await addItemToBOMWithPartNumber(faucetTypeId, faucetQuantity || 1, 'FAUCET_KIT', bom, new Set());
         }
 
         // 9. Sprayers (handle both single and array format)
@@ -514,38 +537,199 @@ async function generateBOMForOrder(orderData) {
         }
     }
 
-    // 11. Consolidate BOM
-    const consolidatedBOM = [];
-    const itemMap = new Map();
+    // 11. Return hierarchical BOM structure
+    // We now preserve the hierarchical structure to show parent->child->grandchild relationships
+    
+    console.log(`Generated BOM with ${bom.length} top-level items`);
+    
+    // Return both hierarchical and flattened versions for different display needs
+    const flattenedBOM = flattenBOMForDisplay(bom);
+    
+    return {
+        hierarchical: bom,           // Full nested structure for detailed views
+        flattened: flattenedBOM,     // Flattened with indentation for simple display
+        totalItems: flattenedBOM.length,
+        topLevelItems: bom.length
+    };
+}
 
-    for (const item of bom) {
-        if (item.isPlaceholder) { // Keep placeholders separate if any
-            consolidatedBOM.push(item);
-            continue;
-        }
-        const key = item.id + (item.category || ''); // Consolidate based on ID and category
-        if (!itemMap.has(key)) {
-            itemMap.set(key, { ...item });
-        } else {
-            // Consolidate quantities for the same item
-            const existingItem = itemMap.get(key);
-            existingItem.quantity += item.quantity;
-            // Merge components if needed, or handle as per business logic
-            // For now, we just consolidate the top-level items
+/**
+ * Auto-select control box based on basin type combinations
+ * @param {Array} basins - Array of basin configurations
+ * @returns {string|null} Control box assembly ID
+ */
+function getAutoControlBoxId(basins) {
+    if (!basins || basins.length === 0) return null;
+    
+    // Count basin types (treating E_SINK_DI as E_SINK for control box logic)
+    const eSinks = basins.filter(b => b.basinTypeId === 'T2-BSN-ESK-KIT' || b.basinTypeId === 'T2-BSN-ESK-DI-KIT').length;
+    const eDrains = basins.filter(b => b.basinTypeId === 'T2-BSN-EDR-KIT').length;
+    
+    // Control box logic from document (lines 151-159)
+    if (eDrains === 1 && eSinks === 0) return 'T2-CTRL-EDR1';          // 719.176
+    if (eDrains === 0 && eSinks === 1) return 'T2-CTRL-ESK1';          // 719.177
+    if (eDrains === 1 && eSinks === 1) return 'T2-CTRL-EDR1-ESK1';     // 719.178
+    if (eDrains === 2 && eSinks === 0) return 'T2-CTRL-EDR2';          // 719.179
+    if (eDrains === 0 && eSinks === 2) return 'T2-CTRL-ESK2';          // 719.180
+    if (eDrains === 3 && eSinks === 0) return 'T2-CTRL-EDR3';          // 719.181
+    if (eDrains === 0 && eSinks === 3) return 'T2-CTRL-ESK3';          // 719.182
+    if (eDrains === 1 && eSinks === 2) return 'T2-CTRL-EDR1-ESK2';     // 719.183
+    if (eDrains === 2 && eSinks === 1) return 'T2-CTRL-EDR2-ESK1';     // 719.184
+    
+    console.warn(`No control box defined for ${eDrains} E-Drains and ${eSinks} E-Sinks`);
+    return null;
+}
+
+/**
+ * Get pegboard size assembly based on sink length
+ * @param {number} sinkLength - Sink length in inches
+ * @returns {string|null} Pegboard size assembly ID
+ */
+function getPegboardSizeByLength(sinkLength) {
+    if (!sinkLength) return null;
+    
+    // Pegboard size logic from document (lines 90-97)
+    if (sinkLength >= 34 && sinkLength <= 47) return 'T2-ADW-PB-3436';   // 715.120
+    if (sinkLength >= 48 && sinkLength <= 59) return 'T2-ADW-PB-4836';   // 715.121
+    if (sinkLength >= 60 && sinkLength <= 71) return 'T2-ADW-PB-6036';   // 715.122
+    if (sinkLength >= 72 && sinkLength <= 83) return 'T2-ADW-PB-7236';   // 715.123
+    if (sinkLength >= 84 && sinkLength <= 95) return 'T2-ADW-PB-8436';   // 715.124
+    if (sinkLength >= 96 && sinkLength <= 107) return 'T2-ADW-PB-9636';  // 715.125
+    if (sinkLength >= 108 && sinkLength <= 119) return 'T2-ADW-PB-10836'; // 715.126
+    if (sinkLength >= 120 && sinkLength <= 130) return 'T2-ADW-PB-12036'; // 715.127
+    
+    console.warn(`No pegboard size defined for sink length: ${sinkLength}`);
+    return null;
+}
+
+/**
+ * Auto-select faucet for E-Sink DI basins
+ * @param {Array} basins - Array of basin configurations
+ * @returns {Array} Auto-selected faucets
+ */
+function getAutoSelectedFaucets(basins) {
+    if (!basins || basins.length === 0) return [];
+    
+    const autoFaucets = [];
+    
+    // Auto-select DI gooseneck faucet for E-Sink DI basins (document line 175)
+    const eSinkDICount = basins.filter(b => b.basinTypeId === 'T2-BSN-ESK-DI-KIT').length;
+    if (eSinkDICount > 0) {
+        autoFaucets.push({
+            faucetTypeId: 'T2-OA-DI-GOOSENECK-FAUCET-KIT',  // 706.60
+            quantity: eSinkDICount,
+            autoSelected: true,
+            reason: 'Auto-selected for E-Sink DI basins'
+        });
+    }
+    
+    return autoFaucets;
+}
+
+/**
+ * Add BOM item with complete hierarchical structure (parent -> child -> grandchild)
+ * @param {string} assemblyId - Assembly ID
+ * @param {number} quantity - Quantity
+ * @param {string} category - Category
+ * @param {Array} bom - BOM array to add to
+ * @param {Set} processedAssemblies - Set of processed assemblies to avoid infinite loops
+ * @param {number} level - Current hierarchy level (0 = top level)
+ */
+async function addItemToBOMWithPartNumber(assemblyId, quantity, category, bom, processedAssemblies = new Set(), level = 0) {
+    // Create a unique key for this assembly at this level to avoid infinite recursion
+    const processKey = `${assemblyId}-${level}`;
+    if (processedAssemblies.has(processKey)) return;
+    processedAssemblies.add(processKey);
+
+    const assembly = await getAssemblyDetails(assemblyId);
+    if (!assembly) {
+        console.warn(`Assembly not found: ${assemblyId}`);
+        return;
+    }
+
+    // Create BOM item with part number and hierarchy info
+    const bomItem = {
+        id: assembly.assemblyId,
+        partNumber: assembly.subcategoryCode || assembly.categoryCode || 'NO-PART-NUMBER',
+        name: assembly.name,
+        quantity: quantity,
+        category: category,
+        type: assembly.type,
+        level: level,
+        children: [],
+        hasChildren: assembly.components && assembly.components.length > 0
+    };
+
+    // Recursively add child components
+    if (assembly.components && assembly.components.length > 0) {
+        for (const component of assembly.components) {
+            if (component.childAssembly) {
+                // Child is an assembly - recurse deeper
+                await addItemToBOMWithPartNumber(
+                    component.childAssembly.assemblyId,
+                    component.quantity * quantity,
+                    `${category}_SUB`,
+                    bomItem.children,
+                    processedAssemblies,
+                    level + 1
+                );
+            } else if (component.childPart) {
+                // Child is a part - terminal node
+                bomItem.children.push({
+                    id: component.childPart.partId,
+                    partNumber: component.childPart.partId, // Parts use partId as part number
+                    name: component.childPart.name,
+                    quantity: component.quantity * quantity,
+                    category: 'PART',
+                    type: component.childPart.type,
+                    level: level + 1,
+                    children: [],
+                    hasChildren: false,
+                    isPart: true
+                });
+            }
         }
     }
 
-    // Convert itemMap back to array
-    for (const consolidatedItem of itemMap.values()) {
-        consolidatedBOM.push(consolidatedItem);
-    }
+    bom.push(bomItem);
+}
 
-    return consolidatedBOM;
+/**
+ * Flatten hierarchical BOM for display while preserving structure info
+ * @param {Array} hierarchicalBom - BOM with nested children
+ * @returns {Array} Flattened BOM with level indicators
+ */
+function flattenBOMForDisplay(hierarchicalBom) {
+    const flattened = [];
+    
+    function flattenRecursive(items, parentLevel = 0) {
+        for (const item of items) {
+            // Add the item itself
+            flattened.push({
+                ...item,
+                isChild: parentLevel > 0,
+                indentLevel: parentLevel
+            });
+            
+            // Recursively add children
+            if (item.children && item.children.length > 0) {
+                flattenRecursive(item.children, parentLevel + 1);
+            }
+        }
+    }
+    
+    flattenRecursive(hierarchicalBom);
+    return flattened;
 }
 
 module.exports = {
     generateBOMForOrder,
     addItemToBOMRecursive,
+    addItemToBOMWithPartNumber,
+    flattenBOMForDisplay,
     getAssemblyDetails,
     getPartDetails,
+    getAutoControlBoxId,
+    getPegboardSizeByLength,
+    getAutoSelectedFaucets
 };

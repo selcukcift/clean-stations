@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Switch } from "@/components/ui/switch"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
@@ -28,6 +29,7 @@ import { cn } from "@/lib/utils"
 import { useOrderCreateStore } from "@/stores/orderCreateStore"
 import { nextJsApiClient } from "@/lib/api"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { BOMDebugHelper } from "@/components/debug/BOMDebugHelper"
 
 interface ConfigurationStepProps {
   buildNumbers: string[]
@@ -64,6 +66,9 @@ export default function ConfigurationStep({ buildNumbers, onComplete }: Configur
   const [loading, setLoading] = useState(true)
   const [pegboardLoading, setPegboardLoading] = useState(false)
   const [controlBoxLoading, setControlBoxLoading] = useState(false)
+  
+  // Debug helper state
+  const [showBOMDebug, setShowBOMDebug] = useState(true)
 
   const currentBuildNumber = buildNumbers[currentBuildIndex]
   const currentConfig = configurations[currentBuildNumber] || {}
@@ -426,7 +431,24 @@ export default function ConfigurationStep({ buildNumbers, onComplete }: Configur
                       <Label>Sink Model *</Label>
                       <Select 
                         value={currentConfig.sinkModelId} 
-                        onValueChange={(value) => updateConfig({ sinkModelId: value })}
+                        onValueChange={(value) => {
+                          const selectedModel = sinkModels.find(model => model.id === value)
+                          if (selectedModel) {
+                            // Auto-generate basins based on model
+                            const basins = Array.from({ length: selectedModel.basinCount }, (_, i) => ({
+                              id: `basin-${Date.now()}-${i}`,
+                              basinType: '',
+                              basinSizePartNumber: null,
+                              addonIds: []
+                            }))
+                            updateConfig({ 
+                              sinkModelId: value,
+                              basins: basins
+                            })
+                          } else {
+                            updateConfig({ sinkModelId: value })
+                          }
+                        }}
                       >
                         <SelectTrigger>
                           <SelectValue placeholder="Select model" />
@@ -496,7 +518,7 @@ export default function ConfigurationStep({ buildNumbers, onComplete }: Configur
                         <SelectContent>
                           {legsOptions.map((leg) => (
                             <SelectItem key={leg.assemblyId} value={leg.assemblyId}>
-                              {leg.name || leg.displayName}
+                              {leg.displayName || leg.name}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -516,7 +538,7 @@ export default function ConfigurationStep({ buildNumbers, onComplete }: Configur
                         <SelectContent>
                           {feetOptions.map((feet) => (
                             <SelectItem key={feet.assemblyId} value={feet.assemblyId}>
-                              {feet.name || feet.displayName}
+                              {feet.displayName || feet.name}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -568,43 +590,19 @@ export default function ConfigurationStep({ buildNumbers, onComplete }: Configur
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
-                    <div className="flex justify-between items-center">
-                      <Label>Basins</Label>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          const currentBasins = currentConfig.basins || []
-                          if (currentBasins.length < getMaxBasins()) {
-                            updateConfig({ 
-                              basins: [...currentBasins, {
-                                id: `basin-${Date.now()}`,
-                                basinType: '',
-                                basinSizePartNumber: null,
-                                addonIds: []
-                              }]
-                            })
-                          }
-                        }}
-                        disabled={!getSelectedModel() || (currentConfig.basins?.length || 0) >= getMaxBasins()}
-                      >
-                        <Plus className="w-4 h-4 mr-2" />
-                        Add Basin
-                      </Button>
-                    </div>
 
-                    {(!currentConfig.basins || currentConfig.basins.length === 0) ? (
+                    {(!currentConfig.sinkModelId) ? (
                       <Alert>
                         <Info className="h-4 w-4" />
                         <AlertDescription>
-                          No basins configured. You need to add {getMaxBasins()} basin{getMaxBasins() > 1 ? 's' : ''} for this sink model.
+                          Please select a sink model first to configure basins.
                         </AlertDescription>
                       </Alert>
-                    ) : currentConfig.basins.length < getMaxBasins() ? (
-                      <Alert className="mb-4">
+                    ) : (!currentConfig.basins || currentConfig.basins.length === 0) ? (
+                      <Alert>
                         <AlertCircle className="h-4 w-4" />
                         <AlertDescription>
-                          {currentConfig.basins.length} of {getMaxBasins()} basins configured. Add {getMaxBasins() - currentConfig.basins.length} more basin{getMaxBasins() - currentConfig.basins.length > 1 ? 's' : ''}.
+                          No basins configured. Please re-select the sink model to initialize basins.
                         </AlertDescription>
                       </Alert>
                     ) : null}
@@ -613,18 +611,8 @@ export default function ConfigurationStep({ buildNumbers, onComplete }: Configur
                       currentConfig.basins.map((basin: any, index: number) => (
                         <Card key={basin.id} className="border-slate-200">
                           <CardContent className="pt-4">
-                            <div className="flex justify-between items-center mb-3">
+                            <div className="mb-3">
                               <h4 className="font-medium">Basin {index + 1}</h4>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => {
-                                  const updatedBasins = currentConfig.basins.filter((_: any, i: number) => i !== index)
-                                  updateConfig({ basins: updatedBasins })
-                                }}
-                              >
-                                <Minus className="w-4 h-4" />
-                              </Button>
                             </div>
                             
                             <div className="grid grid-cols-2 gap-3">
@@ -672,6 +660,76 @@ export default function ConfigurationStep({ buildNumbers, onComplete }: Configur
                                     ))}
                                   </SelectContent>
                                 </Select>
+                              </div>
+                            </div>
+
+                            {/* Basin Add-ons */}
+                            <div className="mt-4 space-y-2">
+                              <Label>Add-ons</Label>
+                              <div className="space-y-2">
+                                <div className="flex items-center space-x-2">
+                                  <Checkbox
+                                    id={`p-trap-${basin.id}`}
+                                    checked={basin.addonIds?.includes('T2-OA-MS-1026') || false}
+                                    onCheckedChange={(checked) => {
+                                      const updatedBasins = [...currentConfig.basins]
+                                      const currentAddons = basin.addonIds || []
+                                      if (checked) {
+                                        updatedBasins[index] = {
+                                          ...basin,
+                                          addonIds: [...currentAddons, 'T2-OA-MS-1026']
+                                        }
+                                      } else {
+                                        updatedBasins[index] = {
+                                          ...basin,
+                                          addonIds: currentAddons.filter((id: string) => id !== 'T2-OA-MS-1026')
+                                        }
+                                      }
+                                      updateConfig({ basins: updatedBasins })
+                                    }}
+                                  />
+                                  <label
+                                    htmlFor={`p-trap-${basin.id}`}
+                                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                                  >
+                                    P-Trap Disinfection Drain Unit
+                                  </label>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                  <Checkbox
+                                    id={`basin-light-${basin.id}`}
+                                    checked={basin.addonIds?.includes('T2-OA-BASIN-LIGHT-ESK-KIT') || basin.addonIds?.includes('T2-OA-BASIN-LIGHT-EDR-KIT') || false}
+                                    disabled={!basin.basinType}
+                                    onCheckedChange={(checked) => {
+                                      const updatedBasins = [...currentConfig.basins]
+                                      const currentAddons = basin.addonIds || []
+                                      const lightKitId = basin.basinType === 'E_DRAIN' ? 'T2-OA-BASIN-LIGHT-EDR-KIT' : 'T2-OA-BASIN-LIGHT-ESK-KIT'
+                                      
+                                      if (checked) {
+                                        // Remove any existing light kit and add the appropriate one
+                                        const filteredAddons = currentAddons.filter((id: string) => 
+                                          !id.includes('BASIN-LIGHT')
+                                        )
+                                        updatedBasins[index] = {
+                                          ...basin,
+                                          addonIds: [...filteredAddons, lightKitId]
+                                        }
+                                      } else {
+                                        updatedBasins[index] = {
+                                          ...basin,
+                                          addonIds: currentAddons.filter((id: string) => !id.includes('BASIN-LIGHT'))
+                                        }
+                                      }
+                                      updateConfig({ basins: updatedBasins })
+                                    }}
+                                  />
+                                  <label
+                                    htmlFor={`basin-light-${basin.id}`}
+                                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                                  >
+                                    Basin Light Kit {!basin.basinType && '(Select basin type first)'}
+                                  </label>
+                                </div>
                               </div>
                             </div>
                           </CardContent>
@@ -1127,6 +1185,13 @@ export default function ConfigurationStep({ buildNumbers, onComplete }: Configur
           </div>
         </ScrollArea>
       </div>
+
+      {/* BOM Debug Helper */}
+      <BOMDebugHelper
+        orderConfig={currentConfig}
+        isVisible={showBOMDebug}
+        onToggleVisibility={() => setShowBOMDebug(!showBOMDebug)}
+      />
     </div>
   )
 }
