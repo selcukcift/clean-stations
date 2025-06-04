@@ -114,6 +114,49 @@ import { nextJsApiClient } from '@/lib/api';
 - **Preview API**: `app/api/orders/preview-bom/` - BOM preview before order submission
 - **Legacy**: `bom-generator.js` - Original BOM logic
 
+### BOM Helper System
+The BOM (Bill of Materials) system includes sophisticated helper components for real-time preview and debugging:
+
+- **Debug Helper**: `components/debug/BOMDebugHelper.tsx` - Live BOM preview during configuration
+  - Real-time BOM generation as user configures sink
+  - Categorized display (sink-body, legs, feet, basins, faucets, sprayers, accessories)
+  - Hierarchical structure visualization with expandable/collapsible categories
+  - Error detection and missing field warnings
+  - Integration with preview BOM API for accuracy validation
+  - Used in configuration steps for immediate feedback
+
+- **BOM Display**: `components/order/BOMDisplay.tsx` - Production-ready BOM viewer
+  - Tree view and category view modes for flexible viewing
+  - Search and filter functionality for large BOMs
+  - Export capabilities (CSV implemented, PDF placeholder)
+  - Hierarchical item expansion showing assembly → part relationships
+  - Assembly vs part type indicators
+  - Custom part identification and handling
+
+**BOM Helper Integration Pattern:**
+```typescript
+// Import BOM Debug Helper for configuration steps
+import BOMDebugHelper from '@/components/debug/BOMDebugHelper';
+
+// Use in configuration component
+<BOMDebugHelper 
+  sinkConfiguration={currentConfig}
+  customerInfo={customerData}
+  accessories={selectedAccessories}
+/>
+
+// BOM Display for completed orders
+import BOMDisplay from '@/components/order/BOMDisplay';
+<BOMDisplay orderId={order.id} bomData={order.bom} />
+```
+
+**Key BOM Helper Features:**
+- **Recursive Assembly Expansion**: Handles complex assembly → sub-assembly → part hierarchies
+- **Dynamic Component Generation**: Auto-selects control boxes, pegboards, and faucets based on configuration
+- **Custom Parts Support**: Generates custom part numbers for non-standard configurations
+- **Real-time Validation**: Immediate feedback on configuration completeness and errors
+- **Export Integration**: Seamless transition from preview to production BOM export
+
 ### Quality Control System
 - **Models**: QcFormTemplate, OrderQcResult in Prisma schema
 - **API**: `app/api/orders/[orderId]/qc/` - QC form management
