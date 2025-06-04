@@ -102,17 +102,20 @@ export async function POST(request: NextRequest) {
       buildNumbers: sinkSelection.buildNumbers
     })
 
+    // bomResult is an object with hierarchical, flattened, totalItems, and topLevelItems properties
+    const flattenedItems = bomResult?.flattened || []
+    
     return NextResponse.json({
       success: true,
       data: {
         bom: bomResult,
         buildNumbers: sinkSelection.buildNumbers,
-        totalItems: bomResult?.length || 0,
+        totalItems: bomResult?.totalItems || 0,
         summary: {
-          systemComponents: bomResult?.filter(item => item.category === 'SYSTEM')?.length || 0,
-          structuralComponents: bomResult?.filter(item => ['SINK_BODY', 'LEGS', 'FEET'].includes(item.category))?.length || 0,
-          basinComponents: bomResult?.filter(item => item.category?.includes('BASIN'))?.length || 0,
-          accessoryComponents: bomResult?.filter(item => item.category === 'ACCESSORY')?.length || 0
+          systemComponents: flattenedItems.filter(item => item.category === 'SYSTEM')?.length || 0,
+          structuralComponents: flattenedItems.filter(item => ['SINK_BODY', 'LEGS', 'FEET'].includes(item.category))?.length || 0,
+          basinComponents: flattenedItems.filter(item => item.category?.includes('BASIN'))?.length || 0,
+          accessoryComponents: flattenedItems.filter(item => item.category === 'ACCESSORY')?.length || 0
         }
       }
     })

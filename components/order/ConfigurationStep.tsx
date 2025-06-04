@@ -3,10 +3,7 @@
 import { useState, useEffect } from "react"
 import { 
   Package, 
-  Ruler, 
   Droplets, 
-  Wrench, 
-  Grid3x3, 
   Check,
   ChevronRight,
   Plus,
@@ -24,7 +21,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox"
 import { Switch } from "@/components/ui/switch"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import { useOrderCreateStore } from "@/stores/orderCreateStore"
 import { nextJsApiClient } from "@/lib/api"
@@ -42,7 +38,6 @@ const SECTIONS = [
   { id: 'basins', label: 'Basins', icon: Droplets, required: true },
   { id: 'faucets', label: 'Faucets', icon: ShowerHead, required: false },
   { id: 'sprayers', label: 'Sprayers', icon: Waves, required: false },
-  { id: 'pegboard', label: 'Pegboard', icon: Grid3x3, required: false },
 ]
 
 export default function ConfigurationStep({ buildNumbers, onComplete }: ConfigurationStepProps) {
@@ -91,6 +86,7 @@ export default function ConfigurationStep({ buildNumbers, onComplete }: Configur
         pegboard: false,
         pegboardTypeId: '',
         pegboardSizePartNumber: '',
+        pegboardColorId: '',
         workflowDirection: 'LEFT_TO_RIGHT',
         basins: [],
         faucets: [],
@@ -131,7 +127,7 @@ export default function ConfigurationStep({ buildNumbers, onComplete }: Configur
       setFeetOptions(feetRes.data.data || [])
       setBasinTypes(basinTypesRes.data.data || [])
       setBasinAddons(basinAddonsRes.data.data || [])
-      setFaucetTypes(faucetTypesRes.data.data || [])
+      setFaucetTypes(faucetTypesRes.data.data?.options || [])
       setSprayerTypes(sprayerTypesRes.data.data || [])
     } catch (error) {
       console.error('Error loading configuration data:', error)
@@ -248,8 +244,6 @@ export default function ConfigurationStep({ buildNumbers, onComplete }: Configur
         return currentConfig.faucets?.length > 0 ? 'complete' : 'optional'
       case 'sprayers':
         return currentConfig.sprayers?.length > 0 ? 'complete' : 'optional'
-      case 'pegboard':
-        return currentConfig.pegboard ? 'complete' : 'optional'
       default:
         return 'incomplete'
     }
@@ -422,7 +416,7 @@ export default function ConfigurationStep({ buildNumbers, onComplete }: Configur
               <Card>
                 <CardHeader>
                   <CardTitle className="text-xl">Sink Body Configuration</CardTitle>
-                  <CardDescription>Configure the sink model, dimensions, legs and feet</CardDescription>
+                  <CardDescription>Configure the sink model, dimensions, legs, feet, and pegboard</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   <div className="grid grid-cols-2 gap-4">
@@ -554,6 +548,96 @@ export default function ConfigurationStep({ buildNumbers, onComplete }: Configur
                       </AlertDescription>
                     </Alert>
                   )}
+
+                  {/* Pegboard Configuration */}
+                  <div className="space-y-4 border-t pt-4">
+                    <h3 className="text-lg font-medium">Pegboard Configuration</h3>
+                    
+                    <div className="space-y-4">
+                      <div className="flex items-center space-x-2">
+                        <Switch
+                          id="pegboard-switch"
+                          checked={currentConfig.pegboard || false}
+                          onCheckedChange={(checked) => updateConfig({ pegboard: checked })}
+                        />
+                        <Label htmlFor="pegboard-switch" className="text-base">Enable Pegboard</Label>
+                      </div>
+
+                      {currentConfig.pegboard && (
+                        <div className="space-y-4 mt-4">
+                          <div className="grid grid-cols-2 gap-4">
+                            {/* Pegboard Type */}
+                            <div className="space-y-2">
+                              <Label>Pegboard Type</Label>
+                              <Select 
+                                value={currentConfig.pegboardTypeId}
+                                onValueChange={(value) => updateConfig({ pegboardTypeId: value })}
+                                disabled={pegboardLoading}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select pegboard type" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {pegboardOptions.types?.map((type: any) => (
+                                    <SelectItem key={type.id} value={type.id}>
+                                      {type.name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            {/* Pegboard Size */}
+                            {currentConfig.pegboardTypeId && (
+                              <div className="space-y-2">
+                                <Label>Pegboard Size</Label>
+                                <Select 
+                                  value={currentConfig.pegboardSizePartNumber}
+                                  onValueChange={(value) => updateConfig({ pegboardSizePartNumber: value })}
+                                  disabled={pegboardLoading}
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Select pegboard size" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {pegboardOptions.sizes?.map((size: any) => (
+                                      <SelectItem key={size.assemblyId} value={size.assemblyId}>
+                                        {size.displayName}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Colorsafe+ Options */}
+                          <div className="space-y-2">
+                            <Label>Colorsafe+ Color (708.77)</Label>
+                            <Select 
+                              value={currentConfig.pegboardColorId || 'none'}
+                              onValueChange={(value) => updateConfig({ pegboardColorId: value === 'none' ? '' : value })}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select color (optional)" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">No Color</SelectItem>
+                                <SelectItem value="T-OA-PB-COLOR-GREEN">Green</SelectItem>
+                                <SelectItem value="T-OA-PB-COLOR-BLACK">Black</SelectItem>
+                                <SelectItem value="T-OA-PB-COLOR-YELLOW">Yellow</SelectItem>
+                                <SelectItem value="T-OA-PB-COLOR-GREY">Grey</SelectItem>
+                                <SelectItem value="T-OA-PB-COLOR-RED">Red</SelectItem>
+                                <SelectItem value="T-OA-PB-COLOR-BLUE">Blue</SelectItem>
+                                <SelectItem value="T-OA-PB-COLOR-ORANGE">Orange</SelectItem>
+                                <SelectItem value="T-OA-PB-COLOR-WHITE">White</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
 
                   {/* Section Navigation */}
                   <div className="flex justify-between pt-4 border-t">
@@ -1039,144 +1123,6 @@ export default function ConfigurationStep({ buildNumbers, onComplete }: Configur
                           : 'Complete All Sinks First'}
                         {(getNextSection(activeSection) || isAllConfigurationComplete()) && <ChevronRight className="w-4 h-4" />}
                       </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Pegboard Section */}
-            {activeSection === 'pegboard' && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-xl">Pegboard Configuration</CardTitle>
-                  <CardDescription>
-                    Optional pegboard add-on for your sink
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="pegboard-switch" className="text-base">Enable Pegboard</Label>
-                    <Switch
-                      id="pegboard-switch"
-                      checked={currentConfig.pegboard || false}
-                      onCheckedChange={(checked) => updateConfig({ pegboard: checked })}
-                    />
-                  </div>
-
-                  {currentConfig.pegboard && (
-                    <>
-                      <div className="space-y-2">
-                        <Label>Pegboard Type</Label>
-                        <Select
-                          value={currentConfig.pegboardTypeId}
-                          onValueChange={(value) => updateConfig({ pegboardTypeId: value })}
-                          disabled={pegboardLoading}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select pegboard type" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {pegboardOptions.types?.map((type: any) => (
-                              <SelectItem key={type.id} value={type.id}>
-                                {type.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      {currentConfig.pegboardTypeId && (
-                        <div className="space-y-2">
-                          <Label>Pegboard Size</Label>
-                          <Select
-                            value={currentConfig.pegboardSizePartNumber}
-                            onValueChange={(value) => updateConfig({ pegboardSizePartNumber: value })}
-                            disabled={pegboardLoading}
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select pegboard size" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {pegboardOptions.sizes?.map((size: any) => (
-                                <SelectItem key={size.partNumber} value={size.partNumber}>
-                                  {size.dimensions}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      )}
-                    </>
-                  )}
-
-                  {/* Section Navigation */}
-                  <div className="flex justify-between pt-4 border-t">
-                    <Button
-                      variant="outline"
-                      onClick={goToPrevSection}
-                      disabled={!getPrevSection(activeSection)}
-                      className="flex items-center gap-2"
-                    >
-                      <ChevronRight className="w-4 h-4 rotate-180" />
-                      Previous Section
-                    </Button>
-                    <Button
-                      onClick={goToNextSection}
-                      disabled={!canProceedToNext(activeSection) || (!getNextSection(activeSection) && !isAllConfigurationComplete())}
-                      className="flex items-center gap-2"
-                    >
-                      {getNextSection(activeSection) 
-                        ? 'Next Section' 
-                        : isAllConfigurationComplete() 
-                        ? 'Go to Accessories' 
-                        : 'Complete All Sinks First'}
-                      {(getNextSection(activeSection) || isAllConfigurationComplete()) && <ChevronRight className="w-4 h-4" />}
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Visual Preview */}
-            {currentConfig.sinkModelId && currentConfig.width && currentConfig.length && (
-              <Card className="mt-6">
-                <CardHeader>
-                  <CardTitle className="text-lg">Configuration Preview</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="bg-slate-100 rounded-lg p-6">
-                    <div className="text-center space-y-2">
-                      <div className="text-2xl font-semibold">
-                        {currentConfig.width}" × {currentConfig.length}"
-                      </div>
-                      <div className="text-slate-600">
-                        {getSelectedModel()?.name}
-                      </div>
-                      <div className="flex justify-center gap-4 mt-4">
-                        {currentConfig.basins?.map((basin: any, i: number) => (
-                          <div key={i} className="bg-white rounded p-2 shadow-sm">
-                            <Droplets className="w-6 h-6 text-blue-500 mx-auto" />
-                            <div className="text-xs mt-1">{basin.basinType}</div>
-                          </div>
-                        ))}
-                      </div>
-                      {(currentConfig.faucets?.length > 0 || currentConfig.sprayers?.length > 0) && (
-                        <div className="flex justify-center gap-6 mt-4 pt-4 border-t">
-                          {currentConfig.faucets?.length > 0 && (
-                            <div className="flex items-center gap-2">
-                              <ShowerHead className="w-5 h-5 text-slate-600" />
-                              <span className="text-sm">{currentConfig.faucets.length} Faucet(s)</span>
-                            </div>
-                          )}
-                          {currentConfig.sprayers?.length > 0 && (
-                            <div className="flex items-center gap-2">
-                              <Waves className="w-5 h-5 text-slate-600" />
-                              <span className="text-sm">{currentConfig.sprayers.length} Sprayer(s)</span>
-                            </div>
-                          )}
-                        </div>
-                      )}
                     </div>
                   </div>
                 </CardContent>
