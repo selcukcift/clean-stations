@@ -61,6 +61,17 @@ interface BOMData {
 }
 
 export function BOMDebugHelper({ orderConfig, customerInfo, isVisible, onToggleVisibility }: BOMDebugHelperProps) {
+  // Debug the incoming configuration
+  useEffect(() => {
+    if (orderConfig) {
+      console.log('🔧 BOMDebugHelper received orderConfig:', {
+        legsTypeId: orderConfig.legsTypeId,
+        feetTypeId: orderConfig.feetTypeId,
+        drawersAndCompartments: orderConfig.drawersAndCompartments,
+        pegboard: orderConfig.pegboard
+      })
+    }
+  }, [orderConfig])
   const [bomData, setBomData] = useState<BOMData | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -113,9 +124,14 @@ export function BOMDebugHelper({ orderConfig, customerInfo, isVisible, onToggleV
       if (orderConfig.pegboard) {
         configData.pegboard = orderConfig.pegboard
         if (orderConfig.pegboardTypeId) configData.pegboardTypeId = orderConfig.pegboardTypeId
-        if (orderConfig.pegboardSizePartNumber) configData.pegboardSizePartNumber = orderConfig.pegboardSizePartNumber
+        // Pegboard size is now auto-calculated based on sink length
       }
       if (orderConfig.workflowDirection) configData.workflowDirection = orderConfig.workflowDirection
+
+      // Add drawers & compartments if configured
+      if (orderConfig.drawersAndCompartments && orderConfig.drawersAndCompartments.length > 0) {
+        configData.drawersAndCompartments = orderConfig.drawersAndCompartments
+      }
 
       // Add basins if configured
       if (orderConfig.basins && orderConfig.basins.length > 0) {
@@ -255,6 +271,8 @@ export function BOMDebugHelper({ orderConfig, customerInfo, isVisible, onToggleV
         }))
       }
 
+      console.log('BOMDebugHelper: configData being sent to BOM generation:', configData)
+
       const previewData = {
         customerInfo: {
           poNumber: "DEBUG-PREVIEW",
@@ -283,6 +301,20 @@ export function BOMDebugHelper({ orderConfig, customerInfo, isVisible, onToggleV
       console.log('BOM API Response:', response)
       console.log('Response type:', typeof response)
       console.log('Response keys:', Object.keys(response || {}))
+      
+      // Debug drawer items in BOM response
+      if (response && response.hierarchical) {
+        const drawerItems = response.hierarchical.filter((item: any) => 
+          item.name?.toLowerCase().includes('drawer') || 
+          item.name?.toLowerCase().includes('stacked') ||
+          item.name?.toLowerCase().includes('pull') ||
+          item.assemblyId?.toLowerCase().includes('t2-oa-2d') ||
+          item.assemblyId?.toLowerCase().includes('t2-oa-po')
+        )
+        if (drawerItems.length > 0) {
+          console.log('🗂️ Found drawer items in BOM:', drawerItems)
+        }
+      }
 
       if (!response) {
         setError('No response received from BOM API')
@@ -474,7 +506,11 @@ export function BOMDebugHelper({ orderConfig, customerInfo, isVisible, onToggleV
         id.includes('t2-adw-') && (id.includes('frame') || id.includes('instro')) ||
         name.includes('sink body') || name.includes('frame') || name.includes('lifter') || 
         name.includes('leg') || name.includes('pegboard') || name.includes('overhead light') ||
-        name.includes('power bar')
+        name.includes('power bar') ||
+        // Drawer & Compartment items
+        category === 'DRAWER_COMPARTMENT' ||
+        id === 't2-oa-2d-152012-stacked-kit' || id === 't2-oa-po-shlf-1212' ||
+        name.includes('drawer') || name.includes('pull-out shelf')
       ) {
         categories['sink-body'].push(item)
       } else if (
@@ -719,6 +755,20 @@ export function BOMDebugHelper({ orderConfig, customerInfo, isVisible, onToggleV
       // Check if this is a selected component from configuration
       const itemId = (item.id || item.assemblyId || item.partNumber || '').toLowerCase()
       
+      // Debug drawer/compartment matching
+      if (currentConfig.drawersAndCompartments && currentConfig.drawersAndCompartments.length > 0) {
+        const drawerMatch = currentConfig.drawersAndCompartments?.some((d: string) => d.toLowerCase() === itemId)
+        if (itemId.includes('drawer') || itemId.includes('stacked') || itemId.includes('pull') || itemId.includes('shelf')) {
+          console.log('🔍 Drawer Debug:', {
+            itemId,
+            itemName: item.name,
+            configuredDrawers: currentConfig.drawersAndCompartments,
+            matchFound: drawerMatch,
+            itemStructure: { id: item.id, assemblyId: item.assemblyId, partNumber: item.partNumber }
+          })
+        }
+      }
+      
       // Helper function to check if basin matches (type or size)
       const isSelectedBasin = currentConfig.basins?.some((b: any) => {
         // Check basin type matches
@@ -787,10 +837,11 @@ export function BOMDebugHelper({ orderConfig, customerInfo, isVisible, onToggleV
         itemId === currentConfig.legsTypeId?.toLowerCase() ||
         itemId === currentConfig.feetTypeId?.toLowerCase() ||
         itemId === currentConfig.controlBoxId?.toLowerCase() ||
-        itemId === currentConfig.pegboardSizePartNumber?.toLowerCase() ||
+        // Pegboard size auto-calculated - no manual selection
         isSelectedBasin ||
         currentConfig.faucets?.some((f: any) => f.faucetTypeId?.toLowerCase() === itemId) ||
-        currentConfig.sprayers?.some((s: any) => s.sprayerTypeId?.toLowerCase() === itemId)
+        currentConfig.sprayers?.some((s: any) => s.sprayerTypeId?.toLowerCase() === itemId) ||
+        currentConfig.drawersAndCompartments?.some((d: string) => d.toLowerCase() === itemId)
 
       const relationshipText = getRelationshipText(item)
       
@@ -1277,7 +1328,7 @@ export function BOMDebugHelper({ orderConfig, customerInfo, isVisible, onToggleV
                           itemId === currentConfig.legsTypeId?.toLowerCase() ||
                           itemId === currentConfig.feetTypeId?.toLowerCase() ||
                           itemId === currentConfig.controlBoxId?.toLowerCase() ||
-                          itemId === currentConfig.pegboardSizePartNumber?.toLowerCase() ||
+                          // Pegboard size auto-calculated - no manual selection
                           isSelectedBasin ||
                           currentConfig.faucets?.some((f: any) => f.faucetTypeId?.toLowerCase() === itemId) ||
                           currentConfig.sprayers?.some((s: any) => s.sprayerTypeId?.toLowerCase() === itemId)

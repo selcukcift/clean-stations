@@ -50,7 +50,7 @@ const SinkConfigurationSchema = z.object({
   pegboard: z.boolean().optional(),
   pegboardTypeId: z.string().optional(),
   pegboardSizePartNumber: z.string().optional(),
-  workFlowDirection: z.enum(['Left', 'Right']).optional(),
+  drawersAndCompartments: z.array(z.string()).optional(),
   workflowDirection: z.enum(['LEFT_TO_RIGHT', 'RIGHT_TO_LEFT']).optional(),
   basins: z.array(BasinConfigurationSchema).default([]),
   faucet: FaucetConfigurationSchema.optional(),
@@ -269,7 +269,38 @@ export async function POST(request: NextRequest) {
       await prisma.selectedAccessory.createMany({
         data: accessoryItems
       })
-    }    // Generate BOM using the service
+    }
+
+    // Create sink configurations
+    const sinkConfigs = []
+    for (const [buildNumber, config] of Object.entries(configurations)) {
+      if (config) {
+        sinkConfigs.push({
+          buildNumber,
+          orderId: order.id,
+          sinkModelId: config.sinkModelId || '',
+          width: config.width || null,
+          length: config.length || null,
+          legsTypeId: config.legsTypeId || null,
+          feetTypeId: config.feetTypeId || null,
+          workflowDirection: config.workflowDirection || null,
+          pegboard: config.pegboard || false,
+          pegboardTypeId: config.pegboardTypeId || null,
+          pegboardColorId: config.pegboardColorId || null,
+          hasDrawersAndCompartments: config.hasDrawersAndCompartments || false,
+          drawersAndCompartments: config.drawersAndCompartments || [],
+          controlBoxId: config.controlBoxId || null
+        })
+      }
+    }
+
+    if (sinkConfigs.length > 0) {
+      await prisma.sinkConfiguration.createMany({
+        data: sinkConfigs
+      })
+    }
+
+    // Generate BOM using the service
     const bomResult = await generateBOMForOrder({
       customer: customerInfo,
       configurations,
@@ -421,6 +452,7 @@ export async function GET(request: NextRequest) {
           }
         },
         basinConfigurations: true,
+        sinkConfigurations: true,
         faucetConfigurations: true,
         sprayerConfigurations: true,
         selectedAccessories: true,

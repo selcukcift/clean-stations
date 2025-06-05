@@ -48,7 +48,7 @@ const SinkConfigurationSchema = z.object({
   pegboard: z.boolean().optional(),
   pegboardTypeId: z.string().optional(),
   pegboardSizePartNumber: z.string().optional(),
-  workFlowDirection: z.enum(['Left', 'Right']).optional(),
+  drawersAndCompartments: z.array(z.string()).optional(),
   workflowDirection: z.enum(['LEFT_TO_RIGHT', 'RIGHT_TO_LEFT']).optional(),
   basins: z.array(BasinConfigurationSchema).default([]),
   faucet: FaucetConfigurationSchema.optional(),

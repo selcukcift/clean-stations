@@ -13,7 +13,7 @@ import {
   ChevronDown, 
   ChevronRight, 
   Download,
-  Print,
+  Printer,
   Share2,
   FileText,
   Filter,
@@ -108,7 +108,7 @@ export function BOMViewer({ orderData, customerInfo, className }: BOMViewerProps
         if (config.pegboard) {
           configData.pegboard = config.pegboard
           if (config.pegboardTypeId) configData.pegboardTypeId = config.pegboardTypeId
-          if (config.pegboardSizePartNumber) configData.pegboardSizePartNumber = config.pegboardSizePartNumber
+          // Pegboard size is now auto-calculated based on sink length
           if (config.pegboardColorId) configData.pegboardColorId = config.pegboardColorId
         }
         if (config.workflowDirection) configData.workflowDirection = config.workflowDirection
@@ -452,7 +452,7 @@ export function BOMViewer({ orderData, customerInfo, className }: BOMViewerProps
           
           <div className="flex items-center space-x-2">
             <Button variant="outline" size="sm" onClick={handlePrint}>
-              <Print className="w-4 h-4 mr-2" />
+              <Printer className="w-4 h-4 mr-2" />
               Print
             </Button>
             <Button variant="outline" size="sm" onClick={handleShare}>

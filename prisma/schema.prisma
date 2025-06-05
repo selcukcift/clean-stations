@@ -118,6 +118,7 @@ model Order {
   createdById           String
   associatedDocuments   AssociatedDocument[]
   basinConfigurations   BasinConfiguration[]
+  sinkConfigurations    SinkConfiguration[]
   generatedBoms         Bom[]                  @relation("OrderBoms")
   faucetConfigurations  FaucetConfiguration[]
   notifications         Notification[]
@@ -162,6 +163,27 @@ model SprayerConfiguration {
   sprayerLocations String[]
   orderId          String
   order            Order    @relation(fields: [orderId], references: [id])
+}
+
+model SinkConfiguration {
+  id                        String   @id @default(cuid())
+  buildNumber               String
+  sinkModelId               String
+  width                     Int?
+  length                    Int?
+  legsTypeId                String?
+  feetTypeId                String?
+  workflowDirection         String?
+  pegboard                  Boolean  @default(false)
+  pegboardTypeId            String?
+  pegboardColorId           String?
+  hasDrawersAndCompartments Boolean  @default(false)
+  drawersAndCompartments    String[] @default([])
+  controlBoxId              String?
+  orderId                   String
+  order                     Order    @relation(fields: [orderId], references: [id])
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
 }
 
 model SelectedAccessory {

@@ -84,8 +84,9 @@ export default function ConfigurationStep({ buildNumbers, onComplete }: Configur
         feetTypeId: '',
         pegboard: false,
         pegboardTypeId: '',
-        pegboardSizePartNumber: '',
         pegboardColorId: '',
+        hasDrawersAndCompartments: false,
+        drawersAndCompartments: [],
         workflowDirection: 'LEFT_TO_RIGHT',
         basins: [],
         faucets: [],
@@ -151,28 +152,22 @@ export default function ConfigurationStep({ buildNumbers, onComplete }: Configur
     }
   }
 
-  // Update pegboard options when dimensions change
+  // Load pegboard options on component mount
   useEffect(() => {
-    if (currentConfig.width && currentConfig.length) {
-      updatePegboardOptions()
-    }
-  }, [currentConfig.width, currentConfig.length])
+    loadPegboardOptions()
+  }, [])
 
-  const updatePegboardOptions = async () => {
-    if (!currentConfig.width || !currentConfig.length) return
-    
+  const loadPegboardOptions = async () => {
     setPegboardLoading(true)
     try {
       const response = await nextJsApiClient.get('/configurator', {
         params: {
-          queryType: 'pegboardOptions',
-          width: currentConfig.width,
-          length: currentConfig.length
+          queryType: 'pegboardOptions'
         }
       })
       setPegboardOptions(response.data.data || {})
     } catch (error) {
-      console.error('Error updating pegboard options:', error)
+      console.error('Error loading pegboard options:', error)
     } finally {
       setPegboardLoading(false)
     }
@@ -549,54 +544,55 @@ export default function ConfigurationStep({ buildNumbers, onComplete }: Configur
 
                       {currentConfig.pegboard && (
                         <div className="space-y-4 mt-4">
-                          <div className="grid grid-cols-2 gap-4">
-                            {/* Pegboard Type */}
-                            <div className="space-y-2">
-                              <Label>Pegboard Type</Label>
-                              <Select 
-                                value={currentConfig.pegboardTypeId}
-                                onValueChange={(value) => updateConfig({ pegboardTypeId: value })}
-                                disabled={pegboardLoading}
-                              >
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Select pegboard type" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {pegboardOptions.types?.map((type: any) => (
-                                    <SelectItem key={type.id} value={type.id}>
-                                      {type.name}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </div>
+                          {/* Pegboard Type */}
+                          <div className="space-y-2">
+                            <Label>Pegboard Type</Label>
+                            <Select 
+                              value={currentConfig.pegboardTypeId}
+                              onValueChange={(value) => updateConfig({ pegboardTypeId: value })}
+                              disabled={pegboardLoading}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select pegboard type" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {pegboardOptions.types?.map((type: any) => (
+                                  <SelectItem key={type.id} value={type.id}>
+                                    {type.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
 
-                            {/* Pegboard Size */}
-                            <div className="space-y-2">
-                              <Label>Pegboard Size</Label>
-                              {!currentConfig.width || !currentConfig.length ? (
-                                <p className="text-sm text-muted-foreground">
-                                  Enter sink dimensions to see available sizes
+                          {/* Pegboard Size Info */}
+                          <div className="space-y-2">
+                            <Label>Pegboard Size</Label>
+                            {!currentConfig.length ? (
+                              <p className="text-sm text-muted-foreground">
+                                Enter sink length to see auto-calculated pegboard size
+                              </p>
+                            ) : (
+                              <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
+                                <p className="text-sm font-medium text-blue-800">
+                                  Auto-calculated size based on sink length ({currentConfig.length}")
                                 </p>
-                              ) : (
-                                <Select 
-                                  value={currentConfig.pegboardSizePartNumber}
-                                  onValueChange={(value) => updateConfig({ pegboardSizePartNumber: value })}
-                                  disabled={pegboardLoading}
-                                >
-                                  <SelectTrigger>
-                                    <SelectValue placeholder={pegboardLoading ? "Loading sizes..." : "Select pegboard size"} />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {pegboardOptions.sizes?.map((size: any) => (
-                                      <SelectItem key={size.assemblyId} value={size.assemblyId}>
-                                        {size.displayName}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              )}
-                            </div>
+                                <p className="text-xs text-blue-600 mt-1">
+                                  {(() => {
+                                    const length = currentConfig.length;
+                                    if (length >= 34 && length <= 47) return 'T2-ADW-PB-3436 (34"×36")';
+                                    if (length >= 48 && length <= 59) return 'T2-ADW-PB-4836 (48"×36")';
+                                    if (length >= 60 && length <= 71) return 'T2-ADW-PB-6036 (60"×36")';
+                                    if (length >= 72 && length <= 83) return 'T2-ADW-PB-7236 (72"×36")';
+                                    if (length >= 84 && length <= 95) return 'T2-ADW-PB-8436 (84"×36")';
+                                    if (length >= 96 && length <= 107) return 'T2-ADW-PB-9636 (96"×36")';
+                                    if (length >= 108 && length <= 119) return 'T2-ADW-PB-10836 (108"×36")';
+                                    if (length >= 120 && length <= 130) return 'T2-ADW-PB-12036 (120"×36")';
+                                    return 'Size will be determined during BOM generation';
+                                  })()}
+                                </p>
+                              </div>
+                            )}
                           </div>
 
                           {/* Colorsafe+ Options */}
@@ -622,6 +618,87 @@ export default function ConfigurationStep({ buildNumbers, onComplete }: Configur
                               </SelectContent>
                             </Select>
                           </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Drawers & Compartments Configuration */}
+                  <div className="space-y-4 border-t pt-4">
+                    <h3 className="text-lg font-medium">Drawers & Compartments</h3>
+                    
+                    <div className="space-y-4">
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          id="add-drawers-compartments"
+                          checked={currentConfig.hasDrawersAndCompartments || (currentConfig.drawersAndCompartments?.length || 0) > 0}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              updateConfig({ hasDrawersAndCompartments: true })
+                            } else {
+                              updateConfig({ hasDrawersAndCompartments: false, drawersAndCompartments: [] })
+                            }
+                          }}
+                        />
+                        <Label htmlFor="add-drawers-compartments" className="text-base font-medium cursor-pointer">
+                          Add Drawers & Compartments
+                        </Label>
+                        <p className="text-sm text-muted-foreground">(Optional)</p>
+                      </div>
+
+                      {(currentConfig.hasDrawersAndCompartments || (currentConfig.drawersAndCompartments?.length || 0) > 0) && (
+                        <div className="space-y-3 ml-6">
+                          <Label>Available Options</Label>
+                          <Select 
+                            value=""
+                            onValueChange={(value) => {
+                              const current = currentConfig.drawersAndCompartments || []
+                              if (!current.includes(value)) {
+                                updateConfig({ 
+                                  drawersAndCompartments: [...current, value]
+                                })
+                              }
+                            }}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select drawer or compartment to add" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="T2-OA-2D-152012-STACKED-KIT">
+                                2 Drawer Stacked Kit (15"×20"×12")
+                              </SelectItem>
+                              <SelectItem value="T2-OA-PO-SHLF-1212">
+                                Pull-Out Shelf (12"×12")
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
+
+                          {/* Selected Items List */}
+                          {currentConfig.drawersAndCompartments && currentConfig.drawersAndCompartments.length > 0 && (
+                            <div className="space-y-2">
+                              <Label className="text-sm">Selected Items:</Label>
+                              {currentConfig.drawersAndCompartments.map((item, index) => (
+                                <div key={item} className="flex items-center justify-between p-2 bg-gray-50 rounded-md">
+                                  <span className="text-sm">
+                                    {item === 'T2-OA-2D-152012-STACKED-KIT' ? '2 Drawer Stacked Kit (15"×20"×12")' : 
+                                     item === 'T2-OA-PO-SHLF-1212' ? 'Pull-Out Shelf (12"×12")' : item}
+                                  </span>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => {
+                                      const current = currentConfig.drawersAndCompartments || []
+                                      updateConfig({ 
+                                        drawersAndCompartments: current.filter(i => i !== item)
+                                      })
+                                    }}
+                                  >
+                                    ×
+                                  </Button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>

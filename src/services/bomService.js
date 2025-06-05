@@ -342,7 +342,8 @@ async function generateBOMForOrder(orderData) {
             feetTypeId,  
             pegboard, 
             pegboardTypeId, 
-            pegboardSizePartNumber, 
+            pegboardSizePartNumber,
+            drawersAndCompartments,
             basins, 
             faucetTypeId, 
             faucetQuantity,
@@ -444,7 +445,15 @@ async function generateBOMForOrder(orderData) {
             }
         }
 
-        // 6. Basin Assemblies
+        // 6. Drawers & Compartments
+        if (drawersAndCompartments && drawersAndCompartments.length > 0) {
+            console.log(`Adding ${drawersAndCompartments.length} drawer/compartment items for build ${buildNumber}:`, drawersAndCompartments);
+            for (const drawerCompartmentId of drawersAndCompartments) {
+                await addItemToBOMWithPartNumber(drawerCompartmentId, 1, 'DRAWER_COMPARTMENT', bom, new Set());
+            }
+        }
+
+        // 7. Basin Assemblies
         if (basins && basins.length > 0) {
             for (const basin of basins) {
                 if (basin.basinTypeId) {
@@ -482,7 +491,7 @@ async function generateBOMForOrder(orderData) {
             }
         }
         
-        // 7. Control Box (Auto-select based on basin types - only when configuration is complete)
+        // 8. Control Box (Auto-select based on basin types - only when configuration is complete)
         const isConfigurationComplete = isSinkConfigurationComplete(config);
         if (isConfigurationComplete) {
             const autoControlBoxId = controlBoxId || getAutoControlBoxId(basins);
@@ -501,7 +510,7 @@ async function generateBOMForOrder(orderData) {
             }
         }
 
-        // 8. Faucets (handle both single and array format + auto-selection)
+        // 9. Faucets (handle both single and array format + auto-selection)
         // Auto-select faucets for E-Sink DI basins
         const autoSelectedFaucets = getAutoSelectedFaucets(basins);
         for (const autoFaucet of autoSelectedFaucets) {
@@ -520,7 +529,7 @@ async function generateBOMForOrder(orderData) {
             await addItemToBOMWithPartNumber(faucetTypeId, faucetQuantity || 1, 'FAUCET_KIT', bom, new Set());
         }
 
-        // 9. Sprayers (handle both single and array format)
+        // 10. Sprayers (handle both single and array format)
         if (sprayers && sprayers.length > 0) {
             // New array format
             for (const sprayer of sprayers) {
@@ -536,7 +545,7 @@ async function generateBOMForOrder(orderData) {
         }
     }
     
-    // 10. Accessories
+    // 11. Accessories
     if (orderAccessories) {
         for (const buildNumber of buildNumbers) {
             const buildAccessories = orderAccessories[buildNumber];
@@ -550,7 +559,7 @@ async function generateBOMForOrder(orderData) {
         }
     }
 
-    // 11. Return hierarchical BOM structure
+    // 12. Return hierarchical BOM structure
     // We now preserve the hierarchical structure to show parent->child->grandchild relationships
     
     console.log(`Generated BOM with ${bom.length} top-level items`);

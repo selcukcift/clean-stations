@@ -47,7 +47,10 @@ async function getAccessoriesByCategory(categoryCode) {
         const accessories = await prisma.assembly.findMany({
             where: {
                 subcategoryCode: categoryCode,
-                type: { in: ['KIT', 'SERVICE_PART', 'COMPLEX', 'SIMPLE'] } // Filter accessory types
+                type: { in: ['KIT', 'SERVICE_PART', 'COMPLEX', 'SIMPLE'] }, // Filter accessory types
+                assemblyId: { 
+                    notIn: ['T2-OA-2D-152012-STACKED-KIT', 'T2-OA-PO-SHLF-1212'] // Exclude drawer/compartment items moved to sink body config
+                }
             },
             select: {
                 assemblyId: true,
@@ -88,7 +91,10 @@ async function getAllAccessories({ searchTerm, categoryFilter, limit = 50, offse
             subcategoryCode: {
                 startsWith: '720.'
             },
-            type: { in: ['KIT', 'SERVICE_PART', 'COMPLEX', 'SIMPLE'] }
+            type: { in: ['KIT', 'SERVICE_PART', 'COMPLEX', 'SIMPLE'] },
+            assemblyId: { 
+                notIn: ['T2-OA-2D-152012-STACKED-KIT', 'T2-OA-PO-SHLF-1212'] // Exclude drawer/compartment items moved to sink body config
+            }
         };
         
         if (categoryFilter) {
@@ -162,7 +168,10 @@ async function getAccessoriesGroupedByCategory() {
                 subcategoryCode: {
                     startsWith: '720.'
                 },
-                type: { in: ['KIT', 'SERVICE_PART', 'COMPLEX', 'SIMPLE'] }
+                type: { in: ['KIT', 'SERVICE_PART', 'COMPLEX', 'SIMPLE'] },
+                assemblyId: { 
+                    notIn: ['T2-OA-2D-152012-STACKED-KIT', 'T2-OA-PO-SHLF-1212'] // Exclude drawer/compartment items moved to sink body config
+                }
             },
             select: {
                 assemblyId: true,
@@ -277,6 +286,9 @@ async function searchAccessories(filters = {}) {
         const where = {
             subcategoryCode: {
                 startsWith: '720.'
+            },
+            assemblyId: { 
+                notIn: ['T2-OA-2D-152012-STACKED-KIT', 'T2-OA-PO-SHLF-1212'] // Exclude drawer/compartment items moved to sink body config
             }
         };
         

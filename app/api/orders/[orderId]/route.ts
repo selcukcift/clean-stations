@@ -124,6 +124,7 @@ export async function GET(
           }
         },
         basinConfigurations: true,
+        sinkConfigurations: true,
         faucetConfigurations: true,
         sprayerConfigurations: true,
         selectedAccessories: true
@@ -270,15 +271,16 @@ export async function PUT(
             orderId,
             buildNumber,
             sinkModelId: config.sinkModelId,
-            sinkWidth: config.sinkWidth,
-            sinkLength: config.sinkLength,
-            legsTypeId: config.legTypeId,
+            width: config.sinkWidth || config.width,
+            length: config.sinkLength || config.length,
+            legsTypeId: config.legTypeId || config.legsTypeId,
             feetTypeId: config.feetTypeId,
             workflowDirection: config.workflowDirection,
-            hasPegboard: config.hasPegboard,
-            pegboardColor: config.pegboardColor,
-            pegboardType: config.pegboardType,
-            pegboardSizeOption: config.pegboardSizeOption,
+            pegboard: config.hasPegboard || config.pegboard || false,
+            pegboardTypeId: config.pegboardType || config.pegboardTypeId,
+            pegboardColorId: config.pegboardColor || config.pegboardColorId,
+            hasDrawersAndCompartments: config.hasDrawersAndCompartments || false,
+            drawersAndCompartments: config.drawersAndCompartments || [],
             controlBoxId: config.controlBoxId
           }
         })

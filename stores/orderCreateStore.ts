@@ -61,13 +61,12 @@ export interface SinkConfiguration {
   pegboard: boolean
   hasPegboard?: boolean
   pegboardType?: string
+  pegboardTypeId?: string
   pegboardColor?: string
-  pegboardSizePartNumber?: string
-  pegboardSizeType?: string
-  pegboardWidth?: number
-  pegboardLength?: number
+  pegboardColorId?: string
+  hasDrawersAndCompartments?: boolean
+  drawersAndCompartments?: string[]
   workflowDirection?: 'LEFT_TO_RIGHT' | 'RIGHT_TO_LEFT'
-  workFlowDirection?: 'Left' | 'Right'
   basins: BasinConfiguration[]
   faucets?: FaucetConfiguration[]
   faucet?: FaucetConfiguration
