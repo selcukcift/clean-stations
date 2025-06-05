@@ -84,7 +84,8 @@
       "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/torvan-db?schema=public\" node check-part-numbers.js)",
       "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/torvan-db?schema=public\" node update-part-numbers.js)",
       "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/torvan-db?schema=public\" node add-missing-assemblies.js)",
-      "Bash(npm run lint:*)"
+      "Bash(npm run lint:*)",
+      "Bash(npm test:*)"
     ],
     "deny": []
   },

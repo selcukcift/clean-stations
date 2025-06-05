@@ -218,13 +218,7 @@ export default function ConfigurationStep({ buildNumbers, onComplete }: Configur
       }
     }
     
-    // Optionally add LEFT and RIGHT if not occupied
-    if (!occupiedPlacements.includes('LEFT')) {
-      options.push({ value: 'LEFT', label: 'Left Side' })
-    }
-    if (!occupiedPlacements.includes('RIGHT')) {
-      options.push({ value: 'RIGHT', label: 'Right Side' })
-    }
+    // Note: LEFT and RIGHT options removed as requested
     
     return options
   }
@@ -747,7 +741,7 @@ export default function ConfigurationStep({ buildNumbers, onComplete }: Configur
                                     <SelectValue placeholder="Select size" />
                                   </SelectTrigger>
                                   <SelectContent>
-                                    {basinSizeOptions?.standardSizes?.map((size: any) => (
+                                    {basinSizeOptions?.standardSizes?.filter((size: any) => !size.isCustom)?.map((size: any) => (
                                       <SelectItem key={size.assemblyId} value={size.assemblyId}>
                                         {size.dimensions}
                                       </SelectItem>

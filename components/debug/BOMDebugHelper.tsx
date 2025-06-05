@@ -159,6 +159,20 @@ export function BOMDebugHelper({ orderConfig, customerInfo, isVisible, onToggleV
           else if (basin.basinSizePartNumber || basin.basinSize) {
             let sizePartNumber = basin.basinSizePartNumber
             
+            // Map configurator service assemblyId to actual assembly names
+            const assemblyIdMappings: Record<string, string> = {
+              '712.102': 'T2-ADW-BASIN20X20X8',
+              '712.103': 'T2-ADW-BASIN24X20X8',
+              '712.104': 'T2-ADW-BASIN24X20X10',
+              '712.105': 'T2-ADW-BASIN30X20X8',
+              '712.106': 'T2-ADW-BASIN30X20X10'
+            }
+            
+            // Map assembly ID to actual assembly name if needed
+            if (sizePartNumber && assemblyIdMappings[sizePartNumber]) {
+              sizePartNumber = assemblyIdMappings[sizePartNumber]
+            }
+            
             // Map UI basin size values to actual part numbers
             if (basin.basinSize && !sizePartNumber) {
               const sizeMappings: Record<string, string> = {
@@ -215,7 +229,7 @@ export function BOMDebugHelper({ orderConfig, customerInfo, isVisible, onToggleV
       // Add faucets if configured
       if (orderConfig.faucets && orderConfig.faucets.length > 0) {
         configData.faucets = orderConfig.faucets.map((faucet: any) => ({
-          faucetTypeId: faucet.faucetType,
+          faucetTypeId: faucet.faucetTypeId, // Fixed: was faucet.faucetType
           quantity: 1
         })).filter((faucet: any) => faucet.faucetTypeId)
       }
@@ -224,7 +238,7 @@ export function BOMDebugHelper({ orderConfig, customerInfo, isVisible, onToggleV
       if (orderConfig.sprayers && orderConfig.sprayers.length > 0) {
         configData.sprayers = orderConfig.sprayers.map((sprayer: any) => ({
           id: sprayer.id,
-          sprayerTypeId: sprayer.sprayerType,
+          sprayerTypeId: sprayer.sprayerTypeId, // Fixed: was sprayer.sprayerType
           location: sprayer.location
         })).filter((sprayer: any) => sprayer.sprayerTypeId)
       }
@@ -729,6 +743,21 @@ export function BOMDebugHelper({ orderConfig, customerInfo, isVisible, onToggleV
           // Check direct match
           if (basinSize.toLowerCase() === itemId) return true
           
+          // Check assembly ID match (like 712.104)
+          if (basinSize === itemId) return true
+          
+          // Map configurator assembly IDs to actual assembly names for comparison
+          const assemblyIdToName: Record<string, string> = {
+            '712.102': 't2-adw-basin20x20x8',
+            '712.103': 't2-adw-basin24x20x8',
+            '712.104': 't2-adw-basin24x20x10',
+            '712.105': 't2-adw-basin30x20x8',
+            '712.106': 't2-adw-basin30x20x10'
+          }
+          
+          // Check if user selected assembly ID maps to BOM item name
+          if (assemblyIdToName[basinSize] === itemId) return true
+          
           // Check size assembly ID mapping
           const sizeMappings: Record<string, string> = {
             '20x20x8': 't2-adw-basin20x20x8',
@@ -739,6 +768,10 @@ export function BOMDebugHelper({ orderConfig, customerInfo, isVisible, onToggleV
           }
           
           if (sizeMappings[basinSize.toLowerCase()] === itemId) return true
+          
+          // Check part number pattern (like 712.104)
+          const partNumberPattern = basinSize.match(/^(\d{3}\.\d+)/)
+          if (partNumberPattern && partNumberPattern[1] === itemId) return true
           
           // Check custom basin format
           if (basinSize.includes('x') || basinSize.includes('X')) {
@@ -1200,6 +1233,21 @@ export function BOMDebugHelper({ orderConfig, customerInfo, isVisible, onToggleV
                             // Check direct match
                             if (basinSize.toLowerCase() === itemId) return true
                             
+                            // Check assembly ID match (like 712.104)
+                            if (basinSize === itemId) return true
+                            
+                            // Map configurator assembly IDs to actual assembly names for comparison
+                            const assemblyIdToName: Record<string, string> = {
+                              '712.102': 't2-adw-basin20x20x8',
+                              '712.103': 't2-adw-basin24x20x8',
+                              '712.104': 't2-adw-basin24x20x10',
+                              '712.105': 't2-adw-basin30x20x8',
+                              '712.106': 't2-adw-basin30x20x10'
+                            }
+                            
+                            // Check if user selected assembly ID maps to BOM item name
+                            if (assemblyIdToName[basinSize] === itemId) return true
+                            
                             // Check size assembly ID mapping
                             const sizeMappings: Record<string, string> = {
                               '20x20x8': 't2-adw-basin20x20x8',
@@ -1210,6 +1258,10 @@ export function BOMDebugHelper({ orderConfig, customerInfo, isVisible, onToggleV
                             }
                             
                             if (sizeMappings[basinSize.toLowerCase()] === itemId) return true
+                            
+                            // Check part number pattern (like 712.104)
+                            const partNumberPattern = basinSize.match(/^(\d{3}\.\d+)/)
+                            if (partNumberPattern && partNumberPattern[1] === itemId) return true
                             
                             // Check custom basin format
                             if (basinSize.includes('x') || basinSize.includes('X')) {
