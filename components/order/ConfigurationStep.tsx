@@ -19,7 +19,6 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Switch } from "@/components/ui/switch"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { cn } from "@/lib/utils"
 import { useOrderCreateStore } from "@/stores/orderCreateStore"
@@ -41,7 +40,7 @@ const SECTIONS = [
 ]
 
 export default function ConfigurationStep({ buildNumbers, onComplete }: ConfigurationStepProps) {
-  const { configurations, updateSinkConfiguration } = useOrderCreateStore()
+  const { configurations, updateSinkConfiguration, customerInfo } = useOrderCreateStore()
   const [currentBuildIndex, setCurrentBuildIndex] = useState(0)
   const [activeSection, setActiveSection] = useState('sink-body')
   
@@ -338,7 +337,7 @@ export default function ConfigurationStep({ buildNumbers, onComplete }: Configur
   return (
     <div className="h-[calc(100vh-16rem)] flex gap-4">
       {/* Sidebar */}
-      <div className="w-80 border-r bg-slate-50/50">
+      <div className="w-64 border-r bg-slate-50/50">
         <div className="p-4 border-b">
           <h3 className="font-semibold text-lg">Configure {currentBuildNumber}</h3>
           <p className="text-sm text-slate-600 mt-1">
@@ -346,7 +345,7 @@ export default function ConfigurationStep({ buildNumbers, onComplete }: Configur
           </p>
         </div>
         
-        <ScrollArea className="h-[calc(100%-5rem)]">
+        <ScrollArea className={buildNumbers.length > 1 ? "h-[calc(100%-8rem)]" : "h-[calc(100%-4rem)]"}>
           <div className="p-4 space-y-2">
             {SECTIONS.map((section) => {
               const status = getSectionStatus(section.id)
@@ -368,9 +367,6 @@ export default function ConfigurationStep({ buildNumbers, onComplete }: Configur
                     <Icon className="w-5 h-5 text-slate-600" />
                     <div className="text-left">
                       <div className="font-medium text-sm">{section.label}</div>
-                      {status === 'incomplete' && section.required && (
-                        <div className="text-xs text-red-600">Required</div>
-                      )}
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
@@ -384,27 +380,29 @@ export default function ConfigurationStep({ buildNumbers, onComplete }: Configur
           </div>
         </ScrollArea>
 
-        {/* Navigation */}
-        <div className="p-4 border-t bg-white">
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setCurrentBuildIndex(Math.max(0, currentBuildIndex - 1))}
-              disabled={currentBuildIndex === 0}
-            >
-              Previous
-            </Button>
-            <Button
-              size="sm"
-              onClick={() => setCurrentBuildIndex(Math.min(buildNumbers.length - 1, currentBuildIndex + 1))}
-              disabled={currentBuildIndex === buildNumbers.length - 1}
-              className="flex-1"
-            >
-              Next Sink
-            </Button>
+        {/* Navigation - Only show if multiple sinks */}
+        {buildNumbers.length > 1 && (
+          <div className="p-4 border-t bg-white">
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentBuildIndex(Math.max(0, currentBuildIndex - 1))}
+                disabled={currentBuildIndex === 0}
+              >
+                Previous
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => setCurrentBuildIndex(Math.min(buildNumbers.length - 1, currentBuildIndex + 1))}
+                disabled={currentBuildIndex === buildNumbers.length - 1}
+                className="flex-1"
+              >
+                Next Sink
+              </Button>
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Main Content Area - Shows only active section */}
@@ -422,7 +420,7 @@ export default function ConfigurationStep({ buildNumbers, onComplete }: Configur
                   <div className="grid grid-cols-2 gap-4">
                     {/* Sink Model */}
                     <div className="space-y-2">
-                      <Label>Sink Model *</Label>
+                      <Label>Sink Model</Label>
                       <Select 
                         value={currentConfig.sinkModelId} 
                         onValueChange={(value) => {
@@ -476,7 +474,7 @@ export default function ConfigurationStep({ buildNumbers, onComplete }: Configur
 
                     {/* Dimensions */}
                     <div className="space-y-2">
-                      <Label>Width (inches) *</Label>
+                      <Label>Width (inches)</Label>
                       <Input
                         type="number"
                         value={currentConfig.width || ''}
@@ -488,7 +486,7 @@ export default function ConfigurationStep({ buildNumbers, onComplete }: Configur
                     </div>
 
                     <div className="space-y-2">
-                      <Label>Length (inches) *</Label>
+                      <Label>Length (inches)</Label>
                       <Input
                         type="number"
                         value={currentConfig.length || ''}
@@ -501,7 +499,7 @@ export default function ConfigurationStep({ buildNumbers, onComplete }: Configur
 
                     {/* Legs */}
                     <div className="space-y-2">
-                      <Label>Leg Type *</Label>
+                      <Label>Leg Type</Label>
                       <Select 
                         value={currentConfig.legsTypeId} 
                         onValueChange={(value) => updateConfig({ legsTypeId: value })}
@@ -521,7 +519,7 @@ export default function ConfigurationStep({ buildNumbers, onComplete }: Configur
 
                     {/* Feet */}
                     <div className="space-y-2">
-                      <Label>Feet Type *</Label>
+                      <Label>Feet Type</Label>
                       <Select 
                         value={currentConfig.feetTypeId} 
                         onValueChange={(value) => updateConfig({ feetTypeId: value })}
@@ -540,14 +538,6 @@ export default function ConfigurationStep({ buildNumbers, onComplete }: Configur
                     </div>
                   </div>
 
-                  {currentConfig.width && currentConfig.length && (
-                    <Alert>
-                      <Info className="h-4 w-4" />
-                      <AlertDescription>
-                        Sink dimensions: {currentConfig.width}" × {currentConfig.length}"
-                      </AlertDescription>
-                    </Alert>
-                  )}
 
                   {/* Pegboard Configuration */}
                   <div className="space-y-4 border-t pt-4">
@@ -555,12 +545,12 @@ export default function ConfigurationStep({ buildNumbers, onComplete }: Configur
                     
                     <div className="space-y-4">
                       <div className="flex items-center space-x-2">
-                        <Switch
-                          id="pegboard-switch"
+                        <Checkbox
+                          id="pegboard-checkbox"
                           checked={currentConfig.pegboard || false}
                           onCheckedChange={(checked) => updateConfig({ pegboard: checked })}
                         />
-                        <Label htmlFor="pegboard-switch" className="text-base">Enable Pegboard</Label>
+                        <Label htmlFor="pegboard-checkbox" className="text-base font-medium cursor-pointer">Add Pegboard</Label>
                       </div>
 
                       {currentConfig.pegboard && (
@@ -588,16 +578,20 @@ export default function ConfigurationStep({ buildNumbers, onComplete }: Configur
                             </div>
 
                             {/* Pegboard Size */}
-                            {currentConfig.pegboardTypeId && (
-                              <div className="space-y-2">
-                                <Label>Pegboard Size</Label>
+                            <div className="space-y-2">
+                              <Label>Pegboard Size</Label>
+                              {!currentConfig.width || !currentConfig.length ? (
+                                <p className="text-sm text-muted-foreground">
+                                  Enter sink dimensions to see available sizes
+                                </p>
+                              ) : (
                                 <Select 
                                   value={currentConfig.pegboardSizePartNumber}
                                   onValueChange={(value) => updateConfig({ pegboardSizePartNumber: value })}
                                   disabled={pegboardLoading}
                                 >
                                   <SelectTrigger>
-                                    <SelectValue placeholder="Select pegboard size" />
+                                    <SelectValue placeholder={pegboardLoading ? "Loading sizes..." : "Select pegboard size"} />
                                   </SelectTrigger>
                                   <SelectContent>
                                     {pegboardOptions.sizes?.map((size: any) => (
@@ -607,8 +601,8 @@ export default function ConfigurationStep({ buildNumbers, onComplete }: Configur
                                     ))}
                                   </SelectContent>
                                 </Select>
-                              </div>
-                            )}
+                              )}
+                            </div>
                           </div>
 
                           {/* Colorsafe+ Options */}
@@ -701,7 +695,7 @@ export default function ConfigurationStep({ buildNumbers, onComplete }: Configur
                             
                             <div className="grid grid-cols-2 gap-3">
                               <div className="space-y-2">
-                                <Label>Type *</Label>
+                                <Label>Type</Label>
                                 <Select 
                                   value={basin.basinType} 
                                   onValueChange={(value) => {
@@ -724,12 +718,28 @@ export default function ConfigurationStep({ buildNumbers, onComplete }: Configur
                               </div>
                               
                               <div className="space-y-2">
-                                <Label>Size *</Label>
+                                <Label>Size</Label>
                                 <Select 
                                   value={basin.basinSizePartNumber || ''} 
                                   onValueChange={(value) => {
                                     const updatedBasins = [...currentConfig.basins]
-                                    updatedBasins[index] = { ...basin, basinSizePartNumber: value }
+                                    if (value === 'CUSTOM') {
+                                      updatedBasins[index] = { 
+                                        ...basin, 
+                                        basinSizePartNumber: value,
+                                        customWidth: null,
+                                        customLength: null,
+                                        customDepth: null
+                                      }
+                                    } else {
+                                      updatedBasins[index] = { 
+                                        ...basin, 
+                                        basinSizePartNumber: value,
+                                        customWidth: undefined,
+                                        customLength: undefined,
+                                        customDepth: undefined
+                                      }
+                                    }
                                     updateConfig({ basins: updatedBasins })
                                   }}
                                 >
@@ -742,8 +752,69 @@ export default function ConfigurationStep({ buildNumbers, onComplete }: Configur
                                         {size.dimensions}
                                       </SelectItem>
                                     ))}
+                                    <SelectItem value="CUSTOM">Custom</SelectItem>
                                   </SelectContent>
                                 </Select>
+                                
+                                {/* Custom Dimensions */}
+                                {basin.basinSizePartNumber === 'CUSTOM' && (
+                                  <div className="grid grid-cols-3 gap-2 mt-3">
+                                    <div className="space-y-1">
+                                      <Label className="text-xs">Width (in)</Label>
+                                      <Input
+                                        type="number"
+                                        value={basin.customWidth || ''}
+                                        onChange={(e) => {
+                                          const updatedBasins = [...currentConfig.basins]
+                                          updatedBasins[index] = { 
+                                            ...basin, 
+                                            customWidth: parseInt(e.target.value) || null 
+                                          }
+                                          updateConfig({ basins: updatedBasins })
+                                        }}
+                                        placeholder="W"
+                                        min="1"
+                                        max="50"
+                                      />
+                                    </div>
+                                    <div className="space-y-1">
+                                      <Label className="text-xs">Length (in)</Label>
+                                      <Input
+                                        type="number"
+                                        value={basin.customLength || ''}
+                                        onChange={(e) => {
+                                          const updatedBasins = [...currentConfig.basins]
+                                          updatedBasins[index] = { 
+                                            ...basin, 
+                                            customLength: parseInt(e.target.value) || null 
+                                          }
+                                          updateConfig({ basins: updatedBasins })
+                                        }}
+                                        placeholder="L"
+                                        min="1"
+                                        max="50"
+                                      />
+                                    </div>
+                                    <div className="space-y-1">
+                                      <Label className="text-xs">Depth (in)</Label>
+                                      <Input
+                                        type="number"
+                                        value={basin.customDepth || ''}
+                                        onChange={(e) => {
+                                          const updatedBasins = [...currentConfig.basins]
+                                          updatedBasins[index] = { 
+                                            ...basin, 
+                                            customDepth: parseInt(e.target.value) || null 
+                                          }
+                                          updateConfig({ basins: updatedBasins })
+                                        }}
+                                        placeholder="D"
+                                        min="1"
+                                        max="20"
+                                      />
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                             </div>
 
@@ -1135,6 +1206,7 @@ export default function ConfigurationStep({ buildNumbers, onComplete }: Configur
       {/* BOM Debug Helper */}
       <BOMDebugHelper
         orderConfig={currentConfig}
+        customerInfo={customerInfo}
         isVisible={showBOMDebug}
         onToggleVisibility={() => setShowBOMDebug(!showBOMDebug)}
       />

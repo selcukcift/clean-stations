@@ -316,7 +316,17 @@ async function generateBOMForOrder(orderData) {
     const { customer, configurations, accessories: orderAccessories, buildNumbers } = orderData;
 
     // 1. Add system items
-    const manualKitId = customer.language === 'FR' ? 'T2-STD-MANUAL-FR-KIT' : 'T2-STD-MANUAL-EN-KIT';
+    let manualKitId;
+    switch (customer.language) {
+        case 'FR':
+            manualKitId = 'T2-STD-MANUAL-FR-KIT';
+            break;
+        case 'ES':
+            manualKitId = 'T2-STD-MANUAL-SP-KIT';
+            break;
+        default:
+            manualKitId = 'T2-STD-MANUAL-EN-KIT';
+    }
     if (manualKitId) {
         await addItemToBOMRecursive(manualKitId, 1, 'SYSTEM', bom, new Set());
     }

@@ -26,6 +26,7 @@ import { nextJsApiClient } from "@/lib/api"
 
 interface BOMDebugHelperProps {
   orderConfig: any
+  customerInfo?: any
   isVisible: boolean
   onToggleVisibility: () => void
 }
@@ -59,15 +60,16 @@ interface BOMData {
   totalPrice?: number
 }
 
-export function BOMDebugHelper({ orderConfig, isVisible, onToggleVisibility }: BOMDebugHelperProps) {
+export function BOMDebugHelper({ orderConfig, customerInfo, isVisible, onToggleVisibility }: BOMDebugHelperProps) {
   const [bomData, setBomData] = useState<BOMData | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(['sink-body', 'basin']))
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(['sink-body', 'basin', 'accessories', 'accessory-storage', 'accessory-lighting']))
   const [searchTerm, setSearchTerm] = useState('')
   const [viewMode, setViewMode] = useState<'categorized' | 'hierarchical'>('hierarchical')
   const [showPrices, setShowPrices] = useState(false)
   const [maxDepth, setMaxDepth] = useState(3)
+  const [accessoryAnalysis, setAccessoryAnalysis] = useState<any>(null)
 
   const generateBOMPreview = useCallback(async () => {
     if (!orderConfig || !orderConfig.sinkModelId) {
@@ -146,8 +148,15 @@ export function BOMDebugHelper({ orderConfig, isVisible, onToggleVisibility }: B
             basinData.basinTypeId = kitAssemblyId
           }
           
+          // Handle custom basin dimensions first
+          if (basin.basinSizePartNumber === 'CUSTOM' && basin.customWidth && basin.customLength && basin.customDepth) {
+            const customDimensions = `${basin.customWidth}X${basin.customLength}X${basin.customDepth}`
+            basinData.basinSizePartNumber = `720.215.001`
+            basinData.customPartNumber = `T2-ADW-BASIN-${customDimensions}`
+            basinData.customDimensions = customDimensions
+          }
           // Map basin size to part number
-          if (basin.basinSizePartNumber || basin.basinSize) {
+          else if (basin.basinSizePartNumber || basin.basinSize) {
             let sizePartNumber = basin.basinSizePartNumber
             
             // Map UI basin size values to actual part numbers
@@ -165,15 +174,27 @@ export function BOMDebugHelper({ orderConfig, isVisible, onToggleVisibility }: B
                 sizePartNumber = sizeMappings[basin.basinSize]
               }
               // Handle custom sizes - either "CUSTOM" or dimension format
-              else if (basin.basinSize === 'CUSTOM' || basin.basinSize.includes('X') || basin.basinSize.includes('x')) {
-                // If it's CUSTOM, we need custom dimensions (should be provided separately)
-                if (basin.basinSize === 'CUSTOM' && basin.customDimensions) {
-                  sizePartNumber = `720.215.001 T2-ADW-BASIN-${basin.customDimensions}`
-                } else if (basin.basinSize !== 'CUSTOM') {
+              else if (basin.basinSize === 'CUSTOM' || basin.basinSizePartNumber === 'CUSTOM') {
+                // If custom basin is selected, use the individual dimension fields
+                if (basin.customWidth && basin.customLength && basin.customDepth) {
+                  const customDimensions = `${basin.customWidth}X${basin.customLength}X${basin.customDepth}`
+                  sizePartNumber = `720.215.001`
+                  basinData.customPartNumber = `T2-ADW-BASIN-${customDimensions}`
+                  basinData.customDimensions = customDimensions
+                } else if (basin.basinSize && basin.basinSize !== 'CUSTOM') {
                   // Direct dimension format like "32X22X10" or "32x22x10"
                   const normalizedDimensions = basin.basinSize.toUpperCase()
-                  sizePartNumber = `720.215.001 T2-ADW-BASIN-${normalizedDimensions}`
+                  sizePartNumber = `720.215.001`
+                  basinData.customPartNumber = `T2-ADW-BASIN-${normalizedDimensions}`
+                  basinData.customDimensions = normalizedDimensions
                 }
+              }
+              // Handle legacy custom dimension format
+              else if (basin.basinSize && (basin.basinSize.includes('X') || basin.basinSize.includes('x'))) {
+                const normalizedDimensions = basin.basinSize.toUpperCase()
+                sizePartNumber = `720.215.001`
+                basinData.customPartNumber = `T2-ADW-BASIN-${normalizedDimensions}`
+                basinData.customDimensions = normalizedDimensions
               }
               // Fallback - use as-is
               else {
@@ -210,13 +231,23 @@ export function BOMDebugHelper({ orderConfig, isVisible, onToggleVisibility }: B
 
       if (orderConfig.controlBoxId) configData.controlBoxId = orderConfig.controlBoxId
 
+      // Add accessories if configured in order
+      const debugAccessories: Record<string, any[]> = {}
+      if (orderConfig.accessories && Array.isArray(orderConfig.accessories)) {
+        debugAccessories["DEBUG-001"] = orderConfig.accessories.map((acc: any) => ({
+          assemblyId: acc.assemblyId || acc.accessoryId,
+          quantity: acc.quantity || 1,
+          name: acc.name
+        }))
+      }
+
       const previewData = {
         customerInfo: {
           poNumber: "DEBUG-PREVIEW",
           customerName: "Debug Customer",
           salesPerson: "Debug User",
           wantDate: new Date().toISOString(),
-          language: "EN"
+          language: customerInfo?.language || "EN"
         },
         sinkSelection: {
           sinkModelId: orderConfig.sinkModelId,
@@ -226,7 +257,7 @@ export function BOMDebugHelper({ orderConfig, isVisible, onToggleVisibility }: B
         configurations: {
           "DEBUG-001": configData
         },
-        accessories: {}
+        accessories: debugAccessories
       }
 
       console.log('Sending BOM preview data:', JSON.stringify(previewData, null, 2))
@@ -304,6 +335,63 @@ export function BOMDebugHelper({ orderConfig, isVisible, onToggleVisibility }: B
     }
   }, [orderConfig, isVisible, generateBOMPreview])
 
+  // Analyze accessories in the BOM
+  const analyzeAccessories = useCallback((bomItems: BOMItem[]) => {
+    if (!bomItems || bomItems.length === 0) {
+      setAccessoryAnalysis(null)
+      return
+    }
+
+    const accessories = bomItems.filter(item => {
+      const id = (item.assemblyId || item.partNumber || '').toLowerCase()
+      const partPrefix = id.match(/^(\d{3}\.\d+)/)?.[1] || ''
+      return partPrefix.startsWith('702.') || partPrefix.startsWith('703.') || 
+             partPrefix.startsWith('704.') || partPrefix.startsWith('705.') ||
+             partPrefix.startsWith('720.') || item.category === 'ACCESSORY'
+    })
+
+    const analysis = {
+      totalAccessories: accessories.length,
+      byCategory: {
+        storage: accessories.filter(a => {
+          const id = (a.assemblyId || a.partNumber || '').toLowerCase()
+          const name = (a.name || '').toLowerCase()
+          return id.match(/^702\./) || name.includes('shelf') || name.includes('rail') || name.includes('basket')
+        }).length,
+        lighting: accessories.filter(a => {
+          const id = (a.assemblyId || a.partNumber || '').toLowerCase()
+          const name = (a.name || '').toLowerCase()
+          return id.match(/^703\./) || name.includes('light') || name.includes('magnify')
+        }).length,
+        organization: accessories.filter(a => {
+          const id = (a.assemblyId || a.partNumber || '').toLowerCase()
+          const name = (a.name || '').toLowerCase()
+          return id.match(/^704\./) || name.includes('holder') || name.includes('organizer') || name.includes('brush')
+        }).length,
+        dispensers: accessories.filter(a => {
+          const id = (a.assemblyId || a.partNumber || '').toLowerCase()
+          const name = (a.name || '').toLowerCase()
+          return id.match(/^705\./) || name.includes('dispenser') || name.includes('glove')
+        }).length
+      },
+      accessories: accessories,
+      // Check for common accessory combinations
+      hasLighting: accessories.some(a => (a.name || '').toLowerCase().includes('light')),
+      hasStorage: accessories.some(a => (a.name || '').toLowerCase().includes('shelf') || (a.name || '').toLowerCase().includes('basket')),
+      hasOrganization: accessories.some(a => (a.name || '').toLowerCase().includes('organizer') || (a.name || '').toLowerCase().includes('holder')),
+      hasDispensers: accessories.some(a => (a.name || '').toLowerCase().includes('dispenser'))
+    }
+
+    setAccessoryAnalysis(analysis)
+  }, [])
+
+  // Analyze accessories when BOM data changes
+  useEffect(() => {
+    if (bomData && bomData.items) {
+      analyzeAccessories(bomData.items)
+    }
+  }, [bomData, analyzeAccessories])
+
   const toggleCategory = (categoryId: string) => {
     const newExpanded = new Set(expandedCategories)
     if (newExpanded.has(categoryId)) {
@@ -322,6 +410,11 @@ export function BOMDebugHelper({ orderConfig, isVisible, onToggleVisibility }: B
       'faucet-sprayer': [],
       'control-box': [],
       'accessories': [],
+      'accessory-storage': [],
+      'accessory-lighting': [],
+      'accessory-organization': [],
+      'accessory-dispensers': [],
+      'accessory-other': [],
       'service-parts': [],
       'other': []
     }
@@ -419,11 +512,47 @@ export function BOMDebugHelper({ orderConfig, isVisible, onToggleVisibility }: B
         !id.includes('faucet') && !id.includes('gun') && !id.includes('pb-') && !id.includes('ohl-led') &&
         !id.includes('t2-adw-pb-') && !id.includes('t2-ohl-mdrd-kit') && 
         !id.includes('t2-adw-pb-perf-kit') && !id.includes('t2-adw-pb-solid-kit') &&
-        !id.includes('basin-light') && !id.includes('ms-1026') &&
-        (name.includes('basket') || name.includes('shelf') || name.includes('light') || 
-         name.includes('mount') || name.includes('holder') || name.includes('organizer') ||
-         name.includes('bin') || name.includes('drawer') || name.includes('rack') ||
-         name.includes('dispenser') || name.includes('cover') || name.includes('arm')))
+        !id.includes('basin-light') && !id.includes('ms-1026'))
+      ) {
+        // Detailed accessory categorization based on part numbers and names
+        if (
+          // Storage & Organization (702.*)
+          partPrefix.startsWith('702.') || 
+          name.includes('basket') || name.includes('shelf') || name.includes('rail') || 
+          name.includes('bin') || name.includes('drawer') || name.includes('rack') ||
+          id.includes('binrail') || id.includes('shelf') || id.includes('basket')
+        ) {
+          categories['accessory-storage'].push(item)
+        } else if (
+          // Lighting (703.*)
+          partPrefix.startsWith('703.') ||
+          name.includes('light') || name.includes('magnify') || name.includes('task') ||
+          id.includes('light') || id.includes('mlight') || id.includes('tasklight')
+        ) {
+          categories['accessory-lighting'].push(item)
+        } else if (
+          // Organization & Holders (704.*)
+          partPrefix.startsWith('704.') ||
+          name.includes('holder') || name.includes('organizer') || name.includes('mount') ||
+          name.includes('brush') || name.includes('instrument') ||
+          id.includes('brush') || id.includes('org') || id.includes('holder') || id.includes('mount')
+        ) {
+          categories['accessory-organization'].push(item)
+        } else if (
+          // Dispensers (705.*)
+          partPrefix.startsWith('705.') ||
+          name.includes('dispenser') || name.includes('glove') || name.includes('soap') ||
+          id.includes('glove') || id.includes('dispenser')
+        ) {
+          categories['accessory-dispensers'].push(item)
+        } else {
+          // Other accessories
+          categories['accessory-other'].push(item)
+        }
+      } else if (
+        // General accessories fallback
+        name.includes('accessory') || 
+        (name.includes('cover') || name.includes('arm') || name.includes('support'))
       ) {
         categories['accessories'].push(item)
       } else if (
@@ -454,7 +583,12 @@ export function BOMDebugHelper({ orderConfig, isVisible, onToggleVisibility }: B
       'basin': '🪣 Basin Configuration',
       'faucet-sprayer': '🚿 Faucet & Sprayer Configuration',
       'control-box': '🎛️ Control Box',
-      'accessories': '🔧 Accessories',
+      'accessories': '🔧 General Accessories',
+      'accessory-storage': '📦 Storage & Organization',
+      'accessory-lighting': '💡 Lighting Accessories',
+      'accessory-organization': '🗂️ Organization & Holders',
+      'accessory-dispensers': '🧤 Dispensers',
+      'accessory-other': '🔧 Other Accessories',
       'service-parts': '⚙️ Service Parts',
       'other': '📦 Other Items'
     }
@@ -478,8 +612,11 @@ export function BOMDebugHelper({ orderConfig, isVisible, onToggleVisibility }: B
     if (partPrefix >= '706.58' && partPrefix <= '706.60') return 'Faucet Type'
     if (partPrefix >= '706.61' && partPrefix <= '706.64') return 'Sprayer Type'
     if (partPrefix >= '719.176' && partPrefix <= '719.184') return 'Control Box Type'
-    if (partPrefix.startsWith('702.') || partPrefix.startsWith('703.') || 
-        partPrefix.startsWith('704.') || partPrefix.startsWith('705.')) return 'Accessory Item'
+    if (partPrefix.startsWith('702.')) return 'Storage Accessory'
+    if (partPrefix.startsWith('703.')) return 'Lighting Accessory'
+    if (partPrefix.startsWith('704.')) return 'Organization Accessory'
+    if (partPrefix.startsWith('705.')) return 'Dispenser Accessory'
+    if (partPrefix.startsWith('720.')) return 'General Accessory'
     
     return ''
   }
@@ -923,6 +1060,70 @@ export function BOMDebugHelper({ orderConfig, isVisible, onToggleVisibility }: B
                       <p className="text-xs text-yellow-600 mt-2">
                         Enter sink dimensions to generate complete BOM including sink body assembly.
                       </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Accessory Analysis */}
+              {accessoryAnalysis && accessoryAnalysis.totalAccessories > 0 && (
+                <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
+                  <div className="flex items-start gap-2">
+                    <Package className="w-4 h-4 text-blue-600 mt-0.5" />
+                    <div>
+                      <p className="text-sm font-medium text-blue-800 mb-2">
+                        🔧 Accessories Analysis ({accessoryAnalysis.totalAccessories} items)
+                      </p>
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div className="space-y-1">
+                          <div className="flex justify-between">
+                            <span className="text-blue-700">📦 Storage:</span>
+                            <Badge variant="secondary" className="text-xs">
+                              {accessoryAnalysis.byCategory.storage}
+                            </Badge>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-blue-700">💡 Lighting:</span>
+                            <Badge variant="secondary" className="text-xs">
+                              {accessoryAnalysis.byCategory.lighting}
+                            </Badge>
+                          </div>
+                        </div>
+                        <div className="space-y-1">
+                          <div className="flex justify-between">
+                            <span className="text-blue-700">🗂️ Organization:</span>
+                            <Badge variant="secondary" className="text-xs">
+                              {accessoryAnalysis.byCategory.organization}
+                            </Badge>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-blue-700">🧤 Dispensers:</span>
+                            <Badge variant="secondary" className="text-xs">
+                              {accessoryAnalysis.byCategory.dispensers}
+                            </Badge>
+                          </div>
+                        </div>
+                      </div>
+                      {(accessoryAnalysis.hasLighting || accessoryAnalysis.hasStorage || 
+                        accessoryAnalysis.hasOrganization || accessoryAnalysis.hasDispensers) && (
+                        <div className="mt-2 pt-2 border-t border-blue-300">
+                          <p className="text-xs text-blue-600 mb-1">Features included:</p>
+                          <div className="flex flex-wrap gap-1">
+                            {accessoryAnalysis.hasLighting && (
+                              <Badge variant="outline" className="text-xs">💡 Lighting</Badge>
+                            )}
+                            {accessoryAnalysis.hasStorage && (
+                              <Badge variant="outline" className="text-xs">📦 Storage</Badge>
+                            )}
+                            {accessoryAnalysis.hasOrganization && (
+                              <Badge variant="outline" className="text-xs">🗂️ Organization</Badge>
+                            )}
+                            {accessoryAnalysis.hasDispensers && (
+                              <Badge variant="outline" className="text-xs">🧤 Dispensers</Badge>
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>

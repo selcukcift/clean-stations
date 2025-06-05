@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Trash2, AlertTriangle, Construction } from "lucide-react"
+import { Plus, Minus, Trash2, AlertTriangle, Construction } from "lucide-react"
 import { nextJsApiClient } from '@/lib/api'
 
 interface BuildNumberEntry {
@@ -204,21 +204,32 @@ export function SinkSelectionStep() {
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="quantity">Number of Sinks *</Label>
-              <Select 
-                value={sinkSelection.quantity?.toString()} 
-                onValueChange={(value: string) => handleQuantityChange(parseInt(value))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select quantity" />
-                </SelectTrigger>
-                <SelectContent>
-                  {Array.from({ length: 10 }, (_, i) => i + 1).map((num) => (
-                    <SelectItem key={num} value={num.toString()}>
-                      {num} {num === 1 ? 'Sink' : 'Sinks'}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="flex items-center space-x-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={() => handleQuantityChange(Math.max(0, (sinkSelection.quantity || 0) - 1))}
+                  disabled={!sinkSelection.quantity || sinkSelection.quantity <= 0}
+                >
+                  <Minus className="h-4 w-4" />
+                </Button>
+                <div className="w-20 text-center">
+                  <span className="text-2xl font-semibold">{sinkSelection.quantity || 0}</span>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={() => handleQuantityChange((sinkSelection.quantity || 0) + 1)}
+                  disabled={sinkSelection.quantity >= 10}
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
+              {sinkSelection.quantity >= 10 && (
+                <p className="text-xs text-muted-foreground">Maximum 10 sinks per order</p>
+              )}
             </div>
 
             {sinkSelection.quantity && sinkSelection.quantity > 0 && (
@@ -308,30 +319,6 @@ export function SinkSelectionStep() {
         </Card>
       )}
 
-      {/* Progress Summary */}
-      <Card className="bg-slate-50 border-slate-200">
-        <CardContent className="pt-6">
-          <div className="flex items-start space-x-3">
-            <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center mt-0.5">
-              <span className="text-xs font-medium text-slate-600">2</span>
-            </div>
-            <div className="text-sm text-slate-800">
-              <p className="font-medium mb-1">Step 2 Requirements:</p>
-              <ul className="text-xs space-y-1">
-                <li className={sinkSelection.sinkFamily ? "text-green-600" : ""}>
-                  • {sinkSelection.sinkFamily ? "✓" : "○"} Select sink family (MDRD available)
-                </li>
-                <li className={sinkSelection.quantity && sinkSelection.quantity > 0 ? "text-green-600" : ""}>
-                  • {sinkSelection.quantity && sinkSelection.quantity > 0 ? "✓" : "○"} Choose quantity
-                </li>
-                <li className={getAllBuildNumbersValid() ? "text-green-600" : ""}>
-                  • {getAllBuildNumbersValid() ? "✓" : "○"} Assign unique build numbers
-                </li>
-              </ul>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   )
 }

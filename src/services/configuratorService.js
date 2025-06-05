@@ -242,6 +242,10 @@ async function getPegboardOptions(sinkDimensions = {}) {
     
     return {
         types: pegboardTypes,
+        sizes: standardPegboards.map(pb => ({
+            ...pb,
+            displayName: `${pb.name} (${pb.covers})`
+        })),
         standardSizes: standardPegboards,
         colorOptions,
         mandatoryParts,

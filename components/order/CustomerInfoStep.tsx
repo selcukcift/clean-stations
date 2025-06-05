@@ -87,7 +87,7 @@ export function CustomerInfoStep() {
               <Label>Document Language *</Label>
               <RadioGroup
                 value={customerInfo.language}
-                onValueChange={(value) => updateCustomerInfo({ language: value as 'EN' | 'FR' })}
+                onValueChange={(value) => updateCustomerInfo({ language: value as 'EN' | 'FR' | 'ES' })}
                 className="flex flex-row space-x-6"
               >
                 <div className="flex items-center space-x-2">
@@ -97,6 +97,10 @@ export function CustomerInfoStep() {
                 <div className="flex items-center space-x-2">
                   <RadioGroupItem value="FR" id="fr" />
                   <Label htmlFor="fr">FR</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="ES" id="es" />
+                  <Label htmlFor="es">ES</Label>
                 </div>
               </RadioGroup>
             </div>
@@ -201,26 +205,6 @@ export function CustomerInfoStep() {
         </CardContent>
       </Card>
 
-      {/* Form Validation Summary */}
-      <Card className="bg-blue-50 border-blue-200">
-        <CardContent className="pt-6">
-          <div className="flex items-start space-x-3">
-            <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center mt-0.5">
-              <span className="text-xs font-medium text-blue-600">i</span>
-            </div>
-            <div className="text-sm text-blue-800">
-              <p className="font-medium mb-1">Required fields validation:</p>
-              <ul className="text-xs space-y-1">
-                <li>• PO Number must be at least 3 characters</li>
-                <li>• Customer Name must be at least 3 characters</li>
-                <li>• Sales Person must be at least 3 characters</li>
-                <li>• Delivery date must be in the future</li>
-                <li>• Document language must be selected</li>
-              </ul>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   )
 }

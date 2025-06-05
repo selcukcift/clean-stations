@@ -7,7 +7,7 @@ export interface CustomerInfo {
   projectName: string
   salesPerson: string
   wantDate: Date | null
-  language: 'EN' | 'FR'
+  language: 'EN' | 'FR' | 'ES'
   notes: string
   poDocument?: File
 }
@@ -25,6 +25,9 @@ export interface BasinConfiguration {
   basinSizePartNumber?: string
   basinSize?: string
   addonIds?: string[]
+  customWidth?: number | null
+  customLength?: number | null
+  customDepth?: number | null
 }
 
 export interface FaucetConfiguration {
