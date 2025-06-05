@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { useOrderCreateStore, SelectedAccessory } from "@/stores/orderCreateStore"
 import { DetailedReviewSection } from "./DetailedReviewSection"
+import { BOMViewer } from "./BOMViewer"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
@@ -11,18 +12,8 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { 
   CheckCircle, 
-  Package, 
-  Calendar, 
-  User, 
-  FileText, 
-  Settings, 
-  ShoppingCart,
   Loader2,
-  AlertCircle,
-  ChevronRight,
-  ChevronDown,
-  Wrench,
-  Box
+  AlertCircle
 } from "lucide-react"
 import { nextJsApiClient } from '@/lib/api'
 
@@ -38,81 +29,6 @@ interface ReviewStepProps {
   orderId?: string
 }
 
-// Recursive component to display BOM items with their children
-function BOMItemDisplay({ item, level = 0 }: { item: any; level: number }) {
-  const [isExpanded, setIsExpanded] = useState(level < 2) // Auto-expand first 2 levels
-  const hasChildren = item.components && item.components.length > 0
-  const indent = level * 24 // 24px indent per level
-
-  return (
-    <div>
-      <div 
-        className={`flex items-center justify-between p-2 rounded text-sm hover:bg-slate-100 transition-colors ${
-          level === 0 ? 'bg-slate-50 border border-slate-200' : 'bg-white'
-        }`}
-        style={{ marginLeft: `${indent}px` }}
-      >
-        <div className="flex items-center flex-1 gap-2">
-          {hasChildren && (
-            <button
-              onClick={() => setIsExpanded(!isExpanded)}
-              className="p-0.5 hover:bg-slate-200 rounded"
-            >
-              {isExpanded ? (
-                <ChevronDown className="w-4 h-4 text-slate-600" />
-              ) : (
-                <ChevronRight className="w-4 h-4 text-slate-600" />
-              )}
-            </button>
-          )}
-          {!hasChildren && level > 0 && (
-            <div className="w-5" /> // Spacer for alignment
-          )}
-          
-          <div className="flex items-center gap-2">
-            {level === 0 ? (
-              <Package className="w-4 h-4 text-slate-600" />
-            ) : item.type === 'PART' ? (
-              <Wrench className="w-4 h-4 text-slate-500" />
-            ) : (
-              <Box className="w-4 h-4 text-slate-500" />
-            )}
-            <div>
-              <div className="font-medium">{item.name}</div>
-              <div className="text-xs text-muted-foreground">
-                ID: {item.id} | Type: {item.type || item.category}
-              </div>
-            </div>
-          </div>
-        </div>
-        
-        <div className="flex items-center gap-2">
-          <Badge variant={level === 0 ? "secondary" : "outline"} className="text-xs">
-            ×{item.quantity}
-          </Badge>
-          {item.isCustom && (
-            <Badge variant="outline" className="text-xs">Custom</Badge>
-          )}
-          {item.isPlaceholder && (
-            <Badge variant="destructive" className="text-xs">Missing</Badge>
-          )}
-        </div>
-      </div>
-      
-      {hasChildren && isExpanded && (
-        <div className="mt-1">
-          {item.components.map((child: any, index: number) => (
-            <BOMItemDisplay 
-              key={`${child.id}-${index}`} 
-              item={child} 
-              level={level + 1} 
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
 
 export function ReviewStep({ isEditMode = false, orderId }: ReviewStepProps) {
   const { 
@@ -126,39 +42,6 @@ export function ReviewStep({ isEditMode = false, orderId }: ReviewStepProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [submitSuccess, setSubmitSuccess] = useState<OrderSubmitResponse | null>(null)
-  const [bomPreview, setBomPreview] = useState<any>(null)
-  const [bomLoading, setBomLoading] = useState(false)
-  const [showBomPreview, setShowBomPreview] = useState(false)
-
-  const generateBomPreview = async () => {
-    setBomLoading(true)
-    setBomPreview(null)
-
-    try {
-      const orderData = {
-        customerInfo: {
-          ...customerInfo,
-          wantDate: customerInfo.wantDate?.toISOString() || new Date().toISOString()
-        },
-        sinkSelection,
-        configurations,
-        accessories
-      }
-
-      const response = await nextJsApiClient.post('/orders/preview-bom', orderData)
-      
-      if (response.data.success) {
-        setBomPreview(response.data.data)
-        setShowBomPreview(true)
-      } else {
-        console.error('BOM preview failed:', response.data.message)
-      }
-    } catch (error: any) {
-      console.error('Error generating BOM preview:', error)
-    } finally {
-      setBomLoading(false)
-    }
-  }
 
   const handleSubmitOrder = async () => {
     setIsSubmitting(true)
@@ -283,60 +166,11 @@ export function ReviewStep({ isEditMode = false, orderId }: ReviewStepProps) {
             accessories={accessories}
           />
 
-          {/* BOM Preview Section */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Package className="h-5 w-5" />
-                Bill of Materials Preview
-              </CardTitle>
-              <CardDescription>
-                Review the complete BOM before submitting your order
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <Button 
-                  onClick={generateBomPreview} 
-                  disabled={bomLoading}
-                  variant="outline"
-                  className="w-full"
-                >
-                  {bomLoading ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Generating BOM...
-                    </>
-                  ) : (
-                    <>
-                      <Package className="w-4 h-4 mr-2" />
-                      Generate BOM Preview
-                    </>
-                  )}
-                </Button>
-
-                {showBomPreview && bomPreview && (
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <h4 className="font-semibold">BOM Items ({bomPreview.totalItems || 0})</h4>
-                      <div className="text-sm text-slate-600">
-                        {bomPreview.summary?.systemComponents || 0} System + {' '}
-                        {bomPreview.summary?.structuralComponents || 0} Structural + {' '}
-                        {bomPreview.summary?.basinComponents || 0} Basin + {' '}
-                        {bomPreview.summary?.accessoryComponents || 0} Accessories
-                      </div>
-                    </div>
-                    
-                    <div className="max-h-96 overflow-y-auto border rounded-lg">
-                      {bomPreview.bom?.map((item: any, index: number) => (
-                        <BOMItemDisplay key={index} item={item} level={0} />
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+          {/* BOM Viewer Section */}
+          <BOMViewer 
+            orderData={configurations}
+            customerInfo={customerInfo}
+          />
 
           {/* Submit Actions */}
           <Card>
