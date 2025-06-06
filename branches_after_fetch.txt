@@ -1,0 +1,4 @@
+* (HEAD detached from 4c26fe0)
+  main
+  remotes/origin/HEAD -> origin/main
+  remotes/origin/main

@@ -1,0 +1,988 @@
+commit c1a078fb2edf90f632aec3e8474acaaf27462d0f
+Author: selcukcift <ciftselcuk@gmail.com>
+Date:   Thu Jun 5 15:58:40 2025 -0400
+
+    Schema update
+
+diff --git a/SCHEMA_CONFIGURATION_ANALYSIS.md b/SCHEMA_CONFIGURATION_ANALYSIS.md
+new file mode 100644
+index 0000000..5705f08
+--- /dev/null
++++ b/SCHEMA_CONFIGURATION_ANALYSIS.md
+@@ -0,0 +1,249 @@
++# Prisma Schema vs Configuration Implementation Analysis
++
++## Executive Summary
++
++After comparing the Prisma schema with the configuration data being collected and used throughout the codebase, I've identified several significant misalignments between what the UI collects, what the BOM service expects, and what can actually be stored in the database.
++
++## Key Misalignments Found
++
++### 1. Missing Configuration Storage Models
++
++The schema is missing several key models needed to properly store sink configuration details:
++
++#### A. SinkConfiguration Model
++**Missing Fields in Database:**
++- `sinkModelId` - References which sink model (T2-B1, T2-B2, T2-B3)
++- `width` & `length` - Sink dimensions
++- `legsTypeId` - Leg assembly ID
++- `feetTypeId` - Feet assembly ID
++- `pegboard` - Boolean for pegboard inclusion
++- `pegboardTypeId` - Type of pegboard (PERFORATED/SOLID)
++- `pegboardColorId` - Pegboard color selection
++- `pegboardSizePartNumber` - Auto or custom pegboard size
++- `workflowDirection` - LEFT_TO_RIGHT or RIGHT_TO_LEFT
++- `hasDrawersAndCompartments` - Boolean for drawer inclusion
++- `drawersAndCompartments` - Array of drawer/compartment IDs
++- `controlBoxId` - Auto-selected control box assembly
++
++**Current Storage:** These fields are only stored in the order creation Zustand store temporarily and partially mapped to existing models.
++
++#### B. PegboardConfiguration Model
++**Missing Table:** No dedicated table for pegboard configuration details
++- Link to order/build
++- Pegboard type (perforated/solid)
++- Size (standard or custom dimensions)
++- Color selection
++- Custom part number generation
++
++#### C. DrawerConfiguration Model
++**Missing Table:** No storage for drawer/compartment selections
++- Link to order/build
++- Selected drawer/compartment assemblies
++- Quantities and placement
++
++### 2. Incomplete Order Configuration Storage
++
++#### Current Order Model Issues:
++The Order model stores basic info but lacks comprehensive configuration details:
++
++**Missing Links:**
++- No direct relationship to sink configuration details
++- No storage for pegboard selections
++- No storage for drawer/compartment choices
++- No storage for workflow direction
++- No storage for control box selection
++
++#### Current Basin/Faucet/Sprayer Models:
++These models exist but have limitations:
++- `BasinConfiguration` - Missing custom dimension storage
++- `FaucetConfiguration` - Missing new array-based structure support
++- `SprayerConfiguration` - Missing location/placement details
++
++### 3. BOM Generation Data Gaps
++
++#### Missing BOM Metadata Storage:
++The BOM service generates complex hierarchical structures but the database cannot fully represent:
++
++**BomItem Model Limitations:**
++- No `partNumber` field (BOM service generates part numbers)
++- No `level` field for hierarchy depth
++- No `hasChildren` boolean
++- No `isPart` distinguisher
++- No `isCustom` flag for generated parts
++- Missing `category` granularity for BOM organization
++
++#### Custom Part Generation:
++The BOM service generates custom parts (pegboards, basins) but these aren't properly stored:
++- Custom pegboard parts: `720.215.002 T2-ADW-PB-[width]x[length]`
++- Custom basin parts: `720.215.001 T2-ADW-BASIN-[width]x[length]x[depth]`
++
++### 4. Configuration Validation Gaps
++
++#### Missing Validation Models:
++No database constraints for:
++- Valid sink model + basin count combinations
++- Control box auto-selection rules
++- Pegboard size validation against sink dimensions
++- Faucet placement restrictions
++
++## Specific Field Mapping Issues
++
++### Order Creation Store → Database Mapping:
++
++| Store Field | Current DB Storage | Status | Missing Elements |
++|-------------|-------------------|---------|------------------|
++| `sinkModelId` | ❌ Not stored | Missing | Need SinkConfiguration table |
++| `width`/`length` | ❌ Not stored | Missing | Need SinkConfiguration table |
++| `legsTypeId` | ❌ Not stored | Missing | Need SinkConfiguration table |
++| `feetTypeId` | ❌ Not stored | Missing | Need SinkConfiguration table |
++| `pegboard` | ❌ Not stored | Missing | Need PegboardConfiguration table |
++| `pegboardTypeId` | ❌ Not stored | Missing | Need PegboardConfiguration table |
++| `pegboardColorId` | ❌ Not stored | Missing | Need PegboardConfiguration table |
++| `workflowDirection` | ❌ Not stored | Missing | Need SinkConfiguration table |
++| `drawersAndCompartments` | ❌ Not stored | Missing | Need DrawerConfiguration table |
++| `controlBoxId` | ❌ Not stored | Missing | Need SinkConfiguration table |
++| `basins` array | ✅ Partial | Limited | Missing custom dimensions |
++| `faucets` array | ✅ Partial | Limited | Missing new structure |
++| `sprayers` array | ✅ Partial | Limited | Missing location details |
++
++### BOM Service → Database Mapping:
++
++| BOM Field | Current DB Storage | Status | Issues |
++|-----------|-------------------|---------|---------|
++| `partNumber` | ❌ Not stored | Missing | Critical for manufacturing |
++| `level` (hierarchy) | ❌ Not stored | Missing | BOM structure lost |
++| `hasChildren` | ❌ Not stored | Missing | Tree navigation |
++| `isCustom` | ✅ Stored as `isCustom` | ✅ Works | - |
++| `category` | ✅ Stored | ✅ Works | Limited granularity |
++| Custom parts | ❌ Lost | Critical | Auto-generated parts not saved |
++
++## Impact Assessment
++
++### High Impact Issues:
++1. **Complete Configuration Loss**: Core sink configuration (dimensions, pegboard, etc.) is not persisted
++2. **BOM Manufacturing Data**: Missing part numbers and hierarchy critical for production
++3. **Custom Parts Generation**: Auto-generated custom parts are lost after order creation
++4. **Audit Trail**: No way to track configuration changes or validate orders
++
++### Medium Impact Issues:
++1. **Limited Order Editing**: Cannot reconstruct configuration for order modifications
++2. **Reporting Gaps**: Cannot analyze configurations or generate insights
++3. **Integration Issues**: External systems cannot access full configuration data
++
++### Low Impact Issues:
++1. **UI Consistency**: Some configuration fields not validated against database constraints
++2. **Performance**: Repeated BOM generation instead of caching results
++
++## Recommendations
++
++### 1. Add Missing Configuration Models (Critical)
++
++```prisma
++model SinkConfiguration {
++  id                    String   @id @default(cuid())
++  buildNumber           String
++  sinkModelId           String
++  width                 Int?
++  length                Int?
++  legsTypeId            String?
++  feetTypeId            String?
++  pegboard              Boolean  @default(false)
++  pegboardTypeId        String?
++  pegboardColorId       String?
++  pegboardSizePartNumber String?
++  workflowDirection     WorkflowDirection @default(LEFT_TO_RIGHT)
++  controlBoxId          String?
++  createdAt             DateTime @default(now())
++  updatedAt             DateTime @updatedAt
++
++  orderId               String
++  order                 Order    @relation(fields: [orderId], references: [id])
++  pegboardConfig        PegboardConfiguration?
++  drawerConfigs         DrawerConfiguration[]
++
++  @@unique([orderId, buildNumber])
++}
++
++model PegboardConfiguration {
++  id                    String   @id @default(cuid())
++  sinkConfigId          String   @unique
++  pegboardType          PegboardType
++  standardSizeId        String?
++  customWidth           Int?
++  customLength          Int?
++  colorId               String?
++  autoGenerated         Boolean  @default(false)
++  customPartNumber      String?
++
++  sinkConfig            SinkConfiguration @relation(fields: [sinkConfigId], references: [id])
++}
++
++model DrawerConfiguration {
++  id                    String   @id @default(cuid())
++  sinkConfigId          String
++  drawerAssemblyId      String
++  quantity              Int      @default(1)
++  placement             String?
++
++  sinkConfig            SinkConfiguration @relation(fields: [sinkConfigId], references: [id])
++}
++
++enum WorkflowDirection {
++  LEFT_TO_RIGHT
++  RIGHT_TO_LEFT
++}
++
++enum PegboardType {
++  PERFORATED
++  SOLID
++}
++```
++
++### 2. Enhance BOM Models (Critical)
++
++```prisma
++model BomItem {
++  id                 String    @id @default(cuid())
++  partIdOrAssemblyId String
++  partNumber         String?   // Add part number field
++  name               String
++  quantity           Int
++  itemType           String
++  category           String?
++  level              Int       @default(0)  // Add hierarchy level
++  hasChildren        Boolean   @default(false)  // Add children indicator
++  isPart             Boolean   @default(false)  // Distinguish parts from assemblies
++  isCustom           Boolean   @default(false)
++  customPartData     Json?     // Store custom part generation data
++  parentId           String?
++  bomId              String
++  bom                Bom       @relation(fields: [bomId], references: [id])
++  parent             BomItem?  @relation("ParentChildBomItem", fields: [parentId], references: [id])
++  children           BomItem[] @relation("ParentChildBomItem")
++
++  @@index([bomId, level])
++  @@index([parentId])
++}
++```
++
++### 3. Update Order API (High Priority)
++
++Modify the order creation API to:
++- Store complete sink configurations in new models
++- Preserve BOM hierarchy and part numbers
++- Handle custom part generation and storage
++- Maintain configuration audit trail
++
++### 4. Migration Strategy (Recommended)
++
++1. **Phase 1**: Add new configuration models
++2. **Phase 2**: Update order creation API to use new models
++3. **Phase 3**: Enhance BOM models and storage
++4. **Phase 4**: Update existing orders (if needed)
++5. **Phase 5**: Add configuration editing capabilities
++
++## Conclusion
++
++The current schema-configuration misalignment represents a significant gap that prevents proper storage and retrieval of critical order configuration data. The missing models for sink configuration, pegboard details, and drawer selections mean that most configuration information is lost after order creation. This impacts manufacturing, order editing, reporting, and system integration capabilities.
++
++Implementing the recommended schema changes would provide complete configuration persistence, proper BOM hierarchy storage, and full audit trail capabilities essential for a production system.
+\ No newline at end of file
+diff --git a/app/api/orders/[orderId]/route.ts b/app/api/orders/[orderId]/route.ts
+index deba083..f7f6300 100644
+--- a/app/api/orders/[orderId]/route.ts
++++ b/app/api/orders/[orderId]/route.ts
+@@ -124,6 +124,7 @@ export async function GET(
+           }
+         },
+         basinConfigurations: true,
++        sinkConfigurations: true,
+         faucetConfigurations: true,
+         sprayerConfigurations: true,
+         selectedAccessories: true
+@@ -270,15 +271,16 @@ export async function PUT(
+             orderId,
+             buildNumber,
+             sinkModelId: config.sinkModelId,
+-            sinkWidth: config.sinkWidth,
+-            sinkLength: config.sinkLength,
+-            legsTypeId: config.legTypeId,
++            width: config.sinkWidth || config.width,
++            length: config.sinkLength || config.length,
++            legsTypeId: config.legTypeId || config.legsTypeId,
+             feetTypeId: config.feetTypeId,
+             workflowDirection: config.workflowDirection,
+-            hasPegboard: config.hasPegboard,
+-            pegboardColor: config.pegboardColor,
+-            pegboardType: config.pegboardType,
+-            pegboardSizeOption: config.pegboardSizeOption,
++            pegboard: config.hasPegboard || config.pegboard || false,
++            pegboardTypeId: config.pegboardType || config.pegboardTypeId,
++            pegboardColorId: config.pegboardColor || config.pegboardColorId,
++            hasDrawersAndCompartments: config.hasDrawersAndCompartments || false,
++            drawersAndCompartments: config.drawersAndCompartments || [],
+             controlBoxId: config.controlBoxId
+           }
+         })
+diff --git a/app/api/orders/preview-bom/route.ts b/app/api/orders/preview-bom/route.ts
+index ab85b05..a17dd19 100644
+--- a/app/api/orders/preview-bom/route.ts
++++ b/app/api/orders/preview-bom/route.ts
+@@ -48,7 +48,7 @@ const SinkConfigurationSchema = z.object({
+   pegboard: z.boolean().optional(),
+   pegboardTypeId: z.string().optional(),
+   pegboardSizePartNumber: z.string().optional(),
+-  workFlowDirection: z.enum(['Left', 'Right']).optional(),
++  drawersAndCompartments: z.array(z.string()).optional(),
+   workflowDirection: z.enum(['LEFT_TO_RIGHT', 'RIGHT_TO_LEFT']).optional(),
+   basins: z.array(BasinConfigurationSchema).default([]),
+   faucet: FaucetConfigurationSchema.optional(),
+diff --git a/app/api/orders/route.ts b/app/api/orders/route.ts
+index c135e7a..55d1a4c 100644
+--- a/app/api/orders/route.ts
++++ b/app/api/orders/route.ts
+@@ -50,7 +50,7 @@ const SinkConfigurationSchema = z.object({
+   pegboard: z.boolean().optional(),
+   pegboardTypeId: z.string().optional(),
+   pegboardSizePartNumber: z.string().optional(),
+-  workFlowDirection: z.enum(['Left', 'Right']).optional(),
++  drawersAndCompartments: z.array(z.string()).optional(),
+   workflowDirection: z.enum(['LEFT_TO_RIGHT', 'RIGHT_TO_LEFT']).optional(),
+   basins: z.array(BasinConfigurationSchema).default([]),
+   faucet: FaucetConfigurationSchema.optional(),
+@@ -269,7 +269,38 @@ export async function POST(request: NextRequest) {
+       await prisma.selectedAccessory.createMany({
+         data: accessoryItems
+       })
+-    }    // Generate BOM using the service
++    }
++
++    // Create sink configurations
++    const sinkConfigs = []
++    for (const [buildNumber, config] of Object.entries(configurations)) {
++      if (config) {
++        sinkConfigs.push({
++          buildNumber,
++          orderId: order.id,
++          sinkModelId: config.sinkModelId || '',
++          width: config.width || null,
++          length: config.length || null,
++          legsTypeId: config.legsTypeId || null,
++          feetTypeId: config.feetTypeId || null,
++          workflowDirection: config.workflowDirection || null,
++          pegboard: config.pegboard || false,
++          pegboardTypeId: config.pegboardTypeId || null,
++          pegboardColorId: config.pegboardColorId || null,
++          hasDrawersAndCompartments: config.hasDrawersAndCompartments || false,
++          drawersAndCompartments: config.drawersAndCompartments || [],
++          controlBoxId: config.controlBoxId || null
++        })
++      }
++    }
++
++    if (sinkConfigs.length > 0) {
++      await prisma.sinkConfiguration.createMany({
++        data: sinkConfigs
++      })
++    }
++
++    // Generate BOM using the service
+     const bomResult = await generateBOMForOrder({
+       customer: customerInfo,
+       configurations,
+@@ -421,6 +452,7 @@ export async function GET(request: NextRequest) {
+           }
+         },
+         basinConfigurations: true,
++        sinkConfigurations: true,
+         faucetConfigurations: true,
+         sprayerConfigurations: true,
+         selectedAccessories: true,
+diff --git a/components/debug/BOMDebugHelper.tsx b/components/debug/BOMDebugHelper.tsx
+index d1c25d6..c40694a 100644
+--- a/components/debug/BOMDebugHelper.tsx
++++ b/components/debug/BOMDebugHelper.tsx
+@@ -61,6 +61,17 @@ interface BOMData {
+ }
+
+ export function BOMDebugHelper({ orderConfig, customerInfo, isVisible, onToggleVisibility }: BOMDebugHelperProps) {
++  // Debug the incoming configuration
++  useEffect(() => {
++    if (orderConfig) {
++      console.log('🔧 BOMDebugHelper received orderConfig:', {
++        legsTypeId: orderConfig.legsTypeId,
++        feetTypeId: orderConfig.feetTypeId,
++        drawersAndCompartments: orderConfig.drawersAndCompartments,
++        pegboard: orderConfig.pegboard
++      })
++    }
++  }, [orderConfig])
+   const [bomData, setBomData] = useState<BOMData | null>(null)
+   const [loading, setLoading] = useState(false)
+   const [error, setError] = useState<string | null>(null)
+@@ -113,10 +124,15 @@ export function BOMDebugHelper({ orderConfig, customerInfo, isVisible, onToggleV
+       if (orderConfig.pegboard) {
+         configData.pegboard = orderConfig.pegboard
+         if (orderConfig.pegboardTypeId) configData.pegboardTypeId = orderConfig.pegboardTypeId
+-        if (orderConfig.pegboardSizePartNumber) configData.pegboardSizePartNumber = orderConfig.pegboardSizePartNumber
++        // Pegboard size is now auto-calculated based on sink length
+       }
+       if (orderConfig.workflowDirection) configData.workflowDirection = orderConfig.workflowDirection
+
++      // Add drawers & compartments if configured
++      if (orderConfig.drawersAndCompartments && orderConfig.drawersAndCompartments.length > 0) {
++        configData.drawersAndCompartments = orderConfig.drawersAndCompartments
++      }
++
+       // Add basins if configured
+       if (orderConfig.basins && orderConfig.basins.length > 0) {
+         configData.basins = orderConfig.basins.map((basin: any) => {
+@@ -255,6 +271,8 @@ export function BOMDebugHelper({ orderConfig, customerInfo, isVisible, onToggleV
+         }))
+       }
+
++      console.log('BOMDebugHelper: configData being sent to BOM generation:', configData)
++
+       const previewData = {
+         customerInfo: {
+           poNumber: "DEBUG-PREVIEW",
+@@ -283,6 +301,20 @@ export function BOMDebugHelper({ orderConfig, customerInfo, isVisible, onToggleV
+       console.log('BOM API Response:', response)
+       console.log('Response type:', typeof response)
+       console.log('Response keys:', Object.keys(response || {}))
++
++      // Debug drawer items in BOM response
++      if (response && response.hierarchical) {
++        const drawerItems = response.hierarchical.filter((item: any) =>
++          item.name?.toLowerCase().includes('drawer') ||
++          item.name?.toLowerCase().includes('stacked') ||
++          item.name?.toLowerCase().includes('pull') ||
++          item.assemblyId?.toLowerCase().includes('t2-oa-2d') ||
++          item.assemblyId?.toLowerCase().includes('t2-oa-po')
++        )
++        if (drawerItems.length > 0) {
++          console.log('🗂️ Found drawer items in BOM:', drawerItems)
++        }
++      }
+
+       if (!response) {
+         setError('No response received from BOM API')
+@@ -474,7 +506,11 @@ export function BOMDebugHelper({ orderConfig, customerInfo, isVisible, onToggleV
+         id.includes('t2-adw-') && (id.includes('frame') || id.includes('instro')) ||
+         name.includes('sink body') || name.includes('frame') || name.includes('lifter') ||
+         name.includes('leg') || name.includes('pegboard') || name.includes('overhead light') ||
+-        name.includes('power bar')
++        name.includes('power bar') ||
++        // Drawer & Compartment items
++        category === 'DRAWER_COMPARTMENT' ||
++        id === 't2-oa-2d-152012-stacked-kit' || id === 't2-oa-po-shlf-1212' ||
++        name.includes('drawer') || name.includes('pull-out shelf')
+       ) {
+         categories['sink-body'].push(item)
+       } else if (
+@@ -719,6 +755,20 @@ export function BOMDebugHelper({ orderConfig, customerInfo, isVisible, onToggleV
+       // Check if this is a selected component from configuration
+       const itemId = (item.id || item.assemblyId || item.partNumber || '').toLowerCase()
+
++      // Debug drawer/compartment matching
++      if (currentConfig.drawersAndCompartments && currentConfig.drawersAndCompartments.length > 0) {
++        const drawerMatch = currentConfig.drawersAndCompartments?.some((d: string) => d.toLowerCase() === itemId)
++        if (itemId.includes('drawer') || itemId.includes('stacked') || itemId.includes('pull') || itemId.includes('shelf')) {
++          console.log('🔍 Drawer Debug:', {
++            itemId,
++            itemName: item.name,
++            configuredDrawers: currentConfig.drawersAndCompartments,
++            matchFound: drawerMatch,
++            itemStructure: { id: item.id, assemblyId: item.assemblyId, partNumber: item.partNumber }
++          })
++        }
++      }
++
+       // Helper function to check if basin matches (type or size)
+       const isSelectedBasin = currentConfig.basins?.some((b: any) => {
+         // Check basin type matches
+@@ -787,10 +837,11 @@ export function BOMDebugHelper({ orderConfig, customerInfo, isVisible, onToggleV
+         itemId === currentConfig.legsTypeId?.toLowerCase() ||
+         itemId === currentConfig.feetTypeId?.toLowerCase() ||
+         itemId === currentConfig.controlBoxId?.toLowerCase() ||
+-        itemId === currentConfig.pegboardSizePartNumber?.toLowerCase() ||
++        // Pegboard size auto-calculated - no manual selection
+         isSelectedBasin ||
+         currentConfig.faucets?.some((f: any) => f.faucetTypeId?.toLowerCase() === itemId) ||
+-        currentConfig.sprayers?.some((s: any) => s.sprayerTypeId?.toLowerCase() === itemId)
++        currentConfig.sprayers?.some((s: any) => s.sprayerTypeId?.toLowerCase() === itemId) ||
++        currentConfig.drawersAndCompartments?.some((d: string) => d.toLowerCase() === itemId)
+
+       const relationshipText = getRelationshipText(item)
+
+@@ -1277,7 +1328,7 @@ export function BOMDebugHelper({ orderConfig, customerInfo, isVisible, onToggleV
+                           itemId === currentConfig.legsTypeId?.toLowerCase() ||
+                           itemId === currentConfig.feetTypeId?.toLowerCase() ||
+                           itemId === currentConfig.controlBoxId?.toLowerCase() ||
+-                          itemId === currentConfig.pegboardSizePartNumber?.toLowerCase() ||
++                          // Pegboard size auto-calculated - no manual selection
+                           isSelectedBasin ||
+                           currentConfig.faucets?.some((f: any) => f.faucetTypeId?.toLowerCase() === itemId) ||
+                           currentConfig.sprayers?.some((s: any) => s.sprayerTypeId?.toLowerCase() === itemId)
+diff --git a/components/order/BOMViewer.tsx b/components/order/BOMViewer.tsx
+index 5e0f5f4..e316c18 100644
+--- a/components/order/BOMViewer.tsx
++++ b/components/order/BOMViewer.tsx
+@@ -13,7 +13,7 @@ import {
+   ChevronDown,
+   ChevronRight,
+   Download,
+-  Print,
++  Printer,
+   Share2,
+   FileText,
+   Filter,
+@@ -108,7 +108,7 @@ export function BOMViewer({ orderData, customerInfo, className }: BOMViewerProps
+         if (config.pegboard) {
+           configData.pegboard = config.pegboard
+           if (config.pegboardTypeId) configData.pegboardTypeId = config.pegboardTypeId
+-          if (config.pegboardSizePartNumber) configData.pegboardSizePartNumber = config.pegboardSizePartNumber
++          // Pegboard size is now auto-calculated based on sink length
+           if (config.pegboardColorId) configData.pegboardColorId = config.pegboardColorId
+         }
+         if (config.workflowDirection) configData.workflowDirection = config.workflowDirection
+@@ -452,7 +452,7 @@ export function BOMViewer({ orderData, customerInfo, className }: BOMViewerProps
+
+           <div className="flex items-center space-x-2">
+             <Button variant="outline" size="sm" onClick={handlePrint}>
+-              <Print className="w-4 h-4 mr-2" />
++              <Printer className="w-4 h-4 mr-2" />
+               Print
+             </Button>
+             <Button variant="outline" size="sm" onClick={handleShare}>
+diff --git a/components/order/ConfigurationStep.tsx b/components/order/ConfigurationStep.tsx
+index 7845d29..6d0e38c 100644
+--- a/components/order/ConfigurationStep.tsx
++++ b/components/order/ConfigurationStep.tsx
+@@ -84,8 +84,9 @@ export default function ConfigurationStep({ buildNumbers, onComplete }: Configur
+         feetTypeId: '',
+         pegboard: false,
+         pegboardTypeId: '',
+-        pegboardSizePartNumber: '',
+         pegboardColorId: '',
++        hasDrawersAndCompartments: false,
++        drawersAndCompartments: [],
+         workflowDirection: 'LEFT_TO_RIGHT',
+         basins: [],
+         faucets: [],
+@@ -151,28 +152,22 @@ export default function ConfigurationStep({ buildNumbers, onComplete }: Configur
+     }
+   }
+
+-  // Update pegboard options when dimensions change
++  // Load pegboard options on component mount
+   useEffect(() => {
+-    if (currentConfig.width && currentConfig.length) {
+-      updatePegboardOptions()
+-    }
+-  }, [currentConfig.width, currentConfig.length])
++    loadPegboardOptions()
++  }, [])
+
+-  const updatePegboardOptions = async () => {
+-    if (!currentConfig.width || !currentConfig.length) return
+-
++  const loadPegboardOptions = async () => {
+     setPegboardLoading(true)
+     try {
+       const response = await nextJsApiClient.get('/configurator', {
+         params: {
+-          queryType: 'pegboardOptions',
+-          width: currentConfig.width,
+-          length: currentConfig.length
++          queryType: 'pegboardOptions'
+         }
+       })
+       setPegboardOptions(response.data.data || {})
+     } catch (error) {
+-      console.error('Error updating pegboard options:', error)
++      console.error('Error loading pegboard options:', error)
+     } finally {
+       setPegboardLoading(false)
+     }
+@@ -549,54 +544,55 @@ export default function ConfigurationStep({ buildNumbers, onComplete }: Configur
+
+                       {currentConfig.pegboard && (
+                         <div className="space-y-4 mt-4">
+-                          <div className="grid grid-cols-2 gap-4">
+-                            {/* Pegboard Type */}
+-                            <div className="space-y-2">
+-                              <Label>Pegboard Type</Label>
+-                              <Select
+-                                value={currentConfig.pegboardTypeId}
+-                                onValueChange={(value) => updateConfig({ pegboardTypeId: value })}
+-                                disabled={pegboardLoading}
+-                              >
+-                                <SelectTrigger>
+-                                  <SelectValue placeholder="Select pegboard type" />
+-                                </SelectTrigger>
+-                                <SelectContent>
+-                                  {pegboardOptions.types?.map((type: any) => (
+-                                    <SelectItem key={type.id} value={type.id}>
+-                                      {type.name}
+-                                    </SelectItem>
+-                                  ))}
+-                                </SelectContent>
+-                              </Select>
+-                            </div>
++                          {/* Pegboard Type */}
++                          <div className="space-y-2">
++                            <Label>Pegboard Type</Label>
++                            <Select
++                              value={currentConfig.pegboardTypeId}
++                              onValueChange={(value) => updateConfig({ pegboardTypeId: value })}
++                              disabled={pegboardLoading}
++                            >
++                              <SelectTrigger>
++                                <SelectValue placeholder="Select pegboard type" />
++                              </SelectTrigger>
++                              <SelectContent>
++                                {pegboardOptions.types?.map((type: any) => (
++                                  <SelectItem key={type.id} value={type.id}>
++                                    {type.name}
++                                  </SelectItem>
++                                ))}
++                              </SelectContent>
++                            </Select>
++                          </div>
+
+-                            {/* Pegboard Size */}
+-                            <div className="space-y-2">
+-                              <Label>Pegboard Size</Label>
+-                              {!currentConfig.width || !currentConfig.length ? (
+-                                <p className="text-sm text-muted-foreground">
+-                                  Enter sink dimensions to see available sizes
++                          {/* Pegboard Size Info */}
++                          <div className="space-y-2">
++                            <Label>Pegboard Size</Label>
++                            {!currentConfig.length ? (
++                              <p className="text-sm text-muted-foreground">
++                                Enter sink length to see auto-calculated pegboard size
++                              </p>
++                            ) : (
++                              <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
++                                <p className="text-sm font-medium text-blue-800">
++                                  Auto-calculated size based on sink length ({currentConfig.length}")
+                                 </p>
+-                              ) : (
+-                                <Select
+-                                  value={currentConfig.pegboardSizePartNumber}
+-                                  onValueChange={(value) => updateConfig({ pegboardSizePartNumber: value })}
+-                                  disabled={pegboardLoading}
+-                                >
+-                                  <SelectTrigger>
+-                                    <SelectValue placeholder={pegboardLoading ? "Loading sizes..." : "Select pegboard size"} />
+-                                  </SelectTrigger>
+-                                  <SelectContent>
+-                                    {pegboardOptions.sizes?.map((size: any) => (
+-                                      <SelectItem key={size.assemblyId} value={size.assemblyId}>
+-                                        {size.displayName}
+-                                      </SelectItem>
+-                                    ))}
+-                                  </SelectContent>
+-                                </Select>
+-                              )}
+-                            </div>
++                                <p className="text-xs text-blue-600 mt-1">
++                                  {(() => {
++                                    const length = currentConfig.length;
++                                    if (length >= 34 && length <= 47) return 'T2-ADW-PB-3436 (34"×36")';
++                                    if (length >= 48 && length <= 59) return 'T2-ADW-PB-4836 (48"×36")';
++                                    if (length >= 60 && length <= 71) return 'T2-ADW-PB-6036 (60"×36")';
++                                    if (length >= 72 && length <= 83) return 'T2-ADW-PB-7236 (72"×36")';
++                                    if (length >= 84 && length <= 95) return 'T2-ADW-PB-8436 (84"×36")';
++                                    if (length >= 96 && length <= 107) return 'T2-ADW-PB-9636 (96"×36")';
++                                    if (length >= 108 && length <= 119) return 'T2-ADW-PB-10836 (108"×36")';
++                                    if (length >= 120 && length <= 130) return 'T2-ADW-PB-12036 (120"×36")';
++                                    return 'Size will be determined during BOM generation';
++                                  })()}
++                                </p>
++                              </div>
++                            )}
+                           </div>
+
+                           {/* Colorsafe+ Options */}
+@@ -627,6 +623,87 @@ export default function ConfigurationStep({ buildNumbers, onComplete }: Configur
+                     </div>
+                   </div>
+
++                  {/* Drawers & Compartments Configuration */}
++                  <div className="space-y-4 border-t pt-4">
++                    <h3 className="text-lg font-medium">Drawers & Compartments</h3>
++
++                    <div className="space-y-4">
++                      <div className="flex items-center space-x-2">
++                        <Checkbox
++                          id="add-drawers-compartments"
++                          checked={currentConfig.hasDrawersAndCompartments || (currentConfig.drawersAndCompartments?.length || 0) > 0}
++                          onCheckedChange={(checked) => {
++                            if (checked) {
++                              updateConfig({ hasDrawersAndCompartments: true })
++                            } else {
++                              updateConfig({ hasDrawersAndCompartments: false, drawersAndCompartments: [] })
++                            }
++                          }}
++                        />
++                        <Label htmlFor="add-drawers-compartments" className="text-base font-medium cursor-pointer">
++                          Add Drawers & Compartments
++                        </Label>
++                        <p className="text-sm text-muted-foreground">(Optional)</p>
++                      </div>
++
++                      {(currentConfig.hasDrawersAndCompartments || (currentConfig.drawersAndCompartments?.length || 0) > 0) && (
++                        <div className="space-y-3 ml-6">
++                          <Label>Available Options</Label>
++                          <Select
++                            value=""
++                            onValueChange={(value) => {
++                              const current = currentConfig.drawersAndCompartments || []
++                              if (!current.includes(value)) {
++                                updateConfig({
++                                  drawersAndCompartments: [...current, value]
++                                })
++                              }
++                            }}
++                          >
++                            <SelectTrigger>
++                              <SelectValue placeholder="Select drawer or compartment to add" />
++                            </SelectTrigger>
++                            <SelectContent>
++                              <SelectItem value="T2-OA-2D-152012-STACKED-KIT">
++                                2 Drawer Stacked Kit (15"×20"×12")
++                              </SelectItem>
++                              <SelectItem value="T2-OA-PO-SHLF-1212">
++                                Pull-Out Shelf (12"×12")
++                              </SelectItem>
++                            </SelectContent>
++                          </Select>
++
++                          {/* Selected Items List */}
++                          {currentConfig.drawersAndCompartments && currentConfig.drawersAndCompartments.length > 0 && (
++                            <div className="space-y-2">
++                              <Label className="text-sm">Selected Items:</Label>
++                              {currentConfig.drawersAndCompartments.map((item, index) => (
++                                <div key={item} className="flex items-center justify-between p-2 bg-gray-50 rounded-md">
++                                  <span className="text-sm">
++                                    {item === 'T2-OA-2D-152012-STACKED-KIT' ? '2 Drawer Stacked Kit (15"×20"×12")' :
++                                     item === 'T2-OA-PO-SHLF-1212' ? 'Pull-Out Shelf (12"×12")' : item}
++                                  </span>
++                                  <Button
++                                    variant="ghost"
++                                    size="sm"
++                                    onClick={() => {
++                                      const current = currentConfig.drawersAndCompartments || []
++                                      updateConfig({
++                                        drawersAndCompartments: current.filter(i => i !== item)
++                                      })
++                                    }}
++                                  >
++                                    ×
++                                  </Button>
++                                </div>
++                              ))}
++                            </div>
++                          )}
++                        </div>
++                      )}
++                    </div>
++                  </div>
++
+                   {/* Section Navigation */}
+                   <div className="flex justify-between pt-4 border-t">
+                     <Button
+diff --git a/prisma/migrations/20250605195249_add_sink_configuration/migration.sql b/prisma/migrations/20250605195249_add_sink_configuration/migration.sql
+new file mode 100644
+index 0000000..67cc392
+--- /dev/null
++++ b/prisma/migrations/20250605195249_add_sink_configuration/migration.sql
+@@ -0,0 +1,25 @@
++-- CreateTable
++CREATE TABLE "SinkConfiguration" (
++    "id" TEXT NOT NULL,
++    "buildNumber" TEXT NOT NULL,
++    "sinkModelId" TEXT NOT NULL,
++    "width" INTEGER,
++    "length" INTEGER,
++    "legsTypeId" TEXT,
++    "feetTypeId" TEXT,
++    "workflowDirection" TEXT,
++    "pegboard" BOOLEAN NOT NULL DEFAULT false,
++    "pegboardTypeId" TEXT,
++    "pegboardColorId" TEXT,
++    "hasDrawersAndCompartments" BOOLEAN NOT NULL DEFAULT false,
++    "drawersAndCompartments" TEXT[] DEFAULT ARRAY[]::TEXT[],
++    "controlBoxId" TEXT,
++    "orderId" TEXT NOT NULL,
++    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++    "updatedAt" TIMESTAMP(3) NOT NULL,
++
++    CONSTRAINT "SinkConfiguration_pkey" PRIMARY KEY ("id")
++);
++
++-- AddForeignKey
++ALTER TABLE "SinkConfiguration" ADD CONSTRAINT "SinkConfiguration_orderId_fkey" FOREIGN KEY ("orderId") REFERENCES "Order"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+diff --git a/prisma/schema.prisma b/prisma/schema.prisma
+index 0e38bdc..295b8c4 100644
+--- a/prisma/schema.prisma
++++ b/prisma/schema.prisma
+@@ -118,6 +118,7 @@ model Order {
+   createdById           String
+   associatedDocuments   AssociatedDocument[]
+   basinConfigurations   BasinConfiguration[]
++  sinkConfigurations    SinkConfiguration[]
+   generatedBoms         Bom[]                  @relation("OrderBoms")
+   faucetConfigurations  FaucetConfiguration[]
+   notifications         Notification[]
+@@ -164,6 +165,27 @@ model SprayerConfiguration {
+   order            Order    @relation(fields: [orderId], references: [id])
+ }
+
++model SinkConfiguration {
++  id                        String   @id @default(cuid())
++  buildNumber               String
++  sinkModelId               String
++  width                     Int?
++  length                    Int?
++  legsTypeId                String?
++  feetTypeId                String?
++  workflowDirection         String?
++  pegboard                  Boolean  @default(false)
++  pegboardTypeId            String?
++  pegboardColorId           String?
++  hasDrawersAndCompartments Boolean  @default(false)
++  drawersAndCompartments    String[] @default([])
++  controlBoxId              String?
++  orderId                   String
++  order                     Order    @relation(fields: [orderId], references: [id])
++  createdAt                 DateTime @default(now())
++  updatedAt                 DateTime @updatedAt
++}
++
+ model SelectedAccessory {
+   id          String @id @default(cuid())
+   buildNumber String
+diff --git a/src/services/accessoriesService.js b/src/services/accessoriesService.js
+index fab030a..f855f18 100644
+--- a/src/services/accessoriesService.js
++++ b/src/services/accessoriesService.js
+@@ -47,7 +47,10 @@ async function getAccessoriesByCategory(categoryCode) {
+         const accessories = await prisma.assembly.findMany({
+             where: {
+                 subcategoryCode: categoryCode,
+-                type: { in: ['KIT', 'SERVICE_PART', 'COMPLEX', 'SIMPLE'] } // Filter accessory types
++                type: { in: ['KIT', 'SERVICE_PART', 'COMPLEX', 'SIMPLE'] }, // Filter accessory types
++                assemblyId: {
++                    notIn: ['T2-OA-2D-152012-STACKED-KIT', 'T2-OA-PO-SHLF-1212'] // Exclude drawer/compartment items moved to sink body config
++                }
+             },
+             select: {
+                 assemblyId: true,
+@@ -88,7 +91,10 @@ async function getAllAccessories({ searchTerm, categoryFilter, limit = 50, offse
+             subcategoryCode: {
+                 startsWith: '720.'
+             },
+-            type: { in: ['KIT', 'SERVICE_PART', 'COMPLEX', 'SIMPLE'] }
++            type: { in: ['KIT', 'SERVICE_PART', 'COMPLEX', 'SIMPLE'] },
++            assemblyId: {
++                notIn: ['T2-OA-2D-152012-STACKED-KIT', 'T2-OA-PO-SHLF-1212'] // Exclude drawer/compartment items moved to sink body config
++            }
+         };
+
+         if (categoryFilter) {
+@@ -162,7 +168,10 @@ async function getAccessoriesGroupedByCategory() {
+                 subcategoryCode: {
+                     startsWith: '720.'
+                 },
+-                type: { in: ['KIT', 'SERVICE_PART', 'COMPLEX', 'SIMPLE'] }
++                type: { in: ['KIT', 'SERVICE_PART', 'COMPLEX', 'SIMPLE'] },
++                assemblyId: {
++                    notIn: ['T2-OA-2D-152012-STACKED-KIT', 'T2-OA-PO-SHLF-1212'] // Exclude drawer/compartment items moved to sink body config
++                }
+             },
+             select: {
+                 assemblyId: true,
+@@ -277,6 +286,9 @@ async function searchAccessories(filters = {}) {
+         const where = {
+             subcategoryCode: {
+                 startsWith: '720.'
++            },
++            assemblyId: {
++                notIn: ['T2-OA-2D-152012-STACKED-KIT', 'T2-OA-PO-SHLF-1212'] // Exclude drawer/compartment items moved to sink body config
+             }
+         };
+
+diff --git a/src/services/bomService.js b/src/services/bomService.js
+index 18df94c..8dbaf0e 100644
+--- a/src/services/bomService.js
++++ b/src/services/bomService.js
+@@ -342,7 +342,8 @@ async function generateBOMForOrder(orderData) {
+             feetTypeId,
+             pegboard,
+             pegboardTypeId,
+-            pegboardSizePartNumber,
++            pegboardSizePartNumber,
++            drawersAndCompartments,
+             basins,
+             faucetTypeId,
+             faucetQuantity,
+@@ -444,7 +445,15 @@ async function generateBOMForOrder(orderData) {
+             }
+         }
+
+-        // 6. Basin Assemblies
++        // 6. Drawers & Compartments
++        if (drawersAndCompartments && drawersAndCompartments.length > 0) {
++            console.log(`Adding ${drawersAndCompartments.length} drawer/compartment items for build ${buildNumber}:`, drawersAndCompartments);
++            for (const drawerCompartmentId of drawersAndCompartments) {
++                await addItemToBOMWithPartNumber(drawerCompartmentId, 1, 'DRAWER_COMPARTMENT', bom, new Set());
++            }
++        }
++
++        // 7. Basin Assemblies
+         if (basins && basins.length > 0) {
+             for (const basin of basins) {
+                 if (basin.basinTypeId) {
+@@ -482,7 +491,7 @@ async function generateBOMForOrder(orderData) {
+             }
+         }
+
+-        // 7. Control Box (Auto-select based on basin types - only when configuration is complete)
++        // 8. Control Box (Auto-select based on basin types - only when configuration is complete)
+         const isConfigurationComplete = isSinkConfigurationComplete(config);
+         if (isConfigurationComplete) {
+             const autoControlBoxId = controlBoxId || getAutoControlBoxId(basins);
+@@ -501,7 +510,7 @@ async function generateBOMForOrder(orderData) {
+             }
+         }
+
+-        // 8. Faucets (handle both single and array format + auto-selection)
++        // 9. Faucets (handle both single and array format + auto-selection)
+         // Auto-select faucets for E-Sink DI basins
+         const autoSelectedFaucets = getAutoSelectedFaucets(basins);
+         for (const autoFaucet of autoSelectedFaucets) {
+@@ -520,7 +529,7 @@ async function generateBOMForOrder(orderData) {
+             await addItemToBOMWithPartNumber(faucetTypeId, faucetQuantity || 1, 'FAUCET_KIT', bom, new Set());
+         }
+
+-        // 9. Sprayers (handle both single and array format)
++        // 10. Sprayers (handle both single and array format)
+         if (sprayers && sprayers.length > 0) {
+             // New array format
+             for (const sprayer of sprayers) {
+@@ -536,7 +545,7 @@ async function generateBOMForOrder(orderData) {
+         }
+     }
+
+-    // 10. Accessories
++    // 11. Accessories
+     if (orderAccessories) {
+         for (const buildNumber of buildNumbers) {
+             const buildAccessories = orderAccessories[buildNumber];
+@@ -550,7 +559,7 @@ async function generateBOMForOrder(orderData) {
+         }
+     }
+
+-    // 11. Return hierarchical BOM structure
++    // 12. Return hierarchical BOM structure
+     // We now preserve the hierarchical structure to show parent->child->grandchild relationships
+
+     console.log(`Generated BOM with ${bom.length} top-level items`);
+diff --git a/stores/orderCreateStore.ts b/stores/orderCreateStore.ts
+index 1a7e676..3a25eac 100644
+--- a/stores/orderCreateStore.ts
++++ b/stores/orderCreateStore.ts
+@@ -61,13 +61,12 @@ export interface SinkConfiguration {
+   pegboard: boolean
+   hasPegboard?: boolean
+   pegboardType?: string
++  pegboardTypeId?: string
+   pegboardColor?: string
+-  pegboardSizePartNumber?: string
+-  pegboardSizeType?: string
+-  pegboardWidth?: number
+-  pegboardLength?: number
++  pegboardColorId?: string
++  hasDrawersAndCompartments?: boolean
++  drawersAndCompartments?: string[]
+   workflowDirection?: 'LEFT_TO_RIGHT' | 'RIGHT_TO_LEFT'
+-  workFlowDirection?: 'Left' | 'Right'
+   basins: BasinConfiguration[]
+   faucets?: FaucetConfiguration[]
+   faucet?: FaucetConfiguration

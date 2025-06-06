@@ -1,0 +1,28 @@
+ebee9e957ce067789568dc4be73fc74c17598d39 - 2025-06-06 10:40:39 +0000 - Apply patch /tmp/17c4c0c6-5dbb-4c69-bdd6-9411fbaa5ee0.patch
+4c26fe083d1faee884f83fa961b33fedfce7e53c - 2025-06-05 21:38:22 -0400 - Merge remote main branch with pegboard integration
+770c7b837bd8d74b0adee5eff139403271ffbb9c - 2025-06-05 21:31:41 -0400 - Complete pegboard kit integration with 128 kit combinations
+c1a078fb2edf90f632aec3e8474acaaf27462d0f - 2025-06-05 15:58:40 -0400 - Schema update
+eb8d0af137a0128118fe7bf82c4f160e2ea791c2 - 2025-06-05 14:05:13 -0400 - feat: Add assembly component verification script to validate CSV against JSON data
+dc85cfcac7957a4b7669ee970f6c6444c4192652 - 2025-06-04 21:11:29 -0400 - chore: Review and clean up unused code and files across the project
+cc34088a40fa7eb3300c2475e4d3931f566c4b28 - 2025-06-04 20:58:13 -0400 - chore: Review and clean up unused code and files across the project
+875aa118052c075870db5d41750f4dedddaa1d6a - 2025-06-04 15:54:49 -0400 - feat: Add assembly component verification script to validate CSV against JSON data
+ff477f8b746026a22c9028536b0f247664b3a149 - 2025-06-04 14:03:03 -0400 - Remove ConfigurationStepV2 component and its associated code
+58827b726369bbef82817cb86a67b3d8016b6bcc - 2025-06-04 06:12:32 -0400 - feat: Enhance BOM system with debug helper and improved configuration
+9f7cd97dbca338ac697b4ff05c148b3912672b44 - 2025-06-04 06:11:21 -0400 - docs: Add comprehensive BOM Helper System documentation to CLAUDE.md
+48f696603bd0750239a376f26981410bd1e558e0 - 2025-06-03 20:05:14 -0400 - 06/03-2025 postgres
+be6a438c5c068674d76d850119fa87d1d5f75716 - 2025-06-03 11:25:39 -0400 - 06/03 updates
+42ca231abd7ec1488b4b72fde68a8185040ebaf7 - 2025-06-02 21:29:57 -0400 - 06/02 updates
+7b87392ac1bb40b771c12128eee252cd00819bfb - 2025-06-02 21:28:31 -0400 - fix: Complete accessories system with all category support
+22de6afc20328deeb9e1ecbe7c8c66b5b5612331 - 2025-06-02 15:26:33 -0400 - feat: Migrate to NextAuth and add BOM preview functionality
+f347a8a98f10b9fc2768c96d9ed8b42be193d237 - 2025-06-01 21:31:34 -0400 - final
+7a13c0865b7d4c42621eca9dadd05e1f6ef76354 - 2025-06-01 16:29:11 -0400 - chore: commit and push current state
+010f43a06a6577b3ef60c55d1eb4feed7370fe5a - 2025-06-01 16:26:12 -0400 - Implement Phase 4: Role-based dashboards and order management
+9b2b0741e760d29a509ab638141056e33129b160 - 2025-06-01 11:48:59 -0400 - Phase 3 WIP2: Fix login to use plainNodeApiClient for authentication; ensure all workflow API calls use correct clients per v5 hybrid backend architecture
+27c39e462017e68f35cafd7e3a7de712a30e467a - 2025-06-01 08:10:19 -0400 - Phase3 WIP
+c02dfd07f2f87c81d0ce17397f366ed5a2c2a18d - 2025-06-01 07:29:25 -0400 - End of Phase2
+bb402b27b96765aa28e5bfe3ec6e8dc295a0da53 - 2025-05-31 22:42:11 -0400 - Phase 2 WIP
+2406a68bfd7007479583a6e4d8e01a8a55a8cc62 - 2025-05-31 22:00:20 -0400 - Implement Chain 2: User Authentication & Authorization
+f271b7b6c9c8cb4c918dca93d0915c5c9df5cd86 - 2025-05-31 21:51:20 -0400 - Phase 1 CompletedandVerified
+7e3307f288683b9c02bc499fbe29850ce6908857 - 2025-05-31 20:50:45 -0400 - End of Phase 1
+619be6d40ec14637bef8f95765a76fec87747d06 - 2025-05-31 16:38:02 -0400 - Remove implementation plan and enhance test server with resource path handling
+7970409c9bcbbbee83bdbcf9ea2c8a70335e1085 - 2025-05-31 06:36:08 -0400 - CleanStation Sink Configuration Tool MVP
