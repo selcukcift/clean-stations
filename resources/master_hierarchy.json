@@ -1,0 +1,274 @@
+{
+  "metadata": {
+    "generation_timestamp": "2025-06-10T01:43:51.258582Z",
+    "description": "Master hierarchy of categories, subcategories, assemblies, and parts."
+  },
+  "hierarchy": {
+    "718": {
+      "name": "CONTROL BOX",
+      "description": "Category for control box",
+      "subcategories": {
+        "718.001": {
+          "name": "1 BASIN",
+          "description": "Subcategory for 1 basin",
+          "assemblies": []
+        },
+        "718.002": {
+          "name": "2 BASINS",
+          "description": "Subcategory for 2 basins",
+          "assemblies": []
+        },
+        "718.003": {
+          "name": "3 BASINS",
+          "description": "Subcategory for 3 basins",
+          "assemblies": []
+        }
+      }
+    },
+    "719": {
+      "name": "SERVICE PARTS",
+      "description": "Category for service parts",
+      "subcategories": {
+        "719.001": {
+          "name": "WIRE BASKET BRACKET",
+          "description": "Subcategory for wire basket bracket",
+          "assemblies": []
+        },
+        "719.002": {
+          "name": "ESINK TOUCHSCREEN",
+          "description": "Subcategory for esink touchscreen",
+          "assemblies": []
+        },
+        "719.003": {
+          "name": "EMERGENCY BUTTON",
+          "description": "Subcategory for emergency button",
+          "assemblies": []
+        },
+        "719.004": {
+          "name": "ESINK VALVE PLATE",
+          "description": "Subcategory for esink valve plate",
+          "assemblies": []
+        },
+        "719.005": {
+          "name": "VALVE PLATE",
+          "description": "Subcategory for valve plate",
+          "assemblies": []
+        },
+        "719.006": {
+          "name": "DI VALVE PLATE",
+          "description": "Subcategory for di valve plate",
+          "assemblies": []
+        },
+        "719.007": {
+          "name": "FAUCET COMPONENT",
+          "description": "Subcategory for faucet component",
+          "assemblies": []
+        },
+        "719.008": {
+          "name": "AIR/WATER GUNS",
+          "description": "Subcategory for air/water guns",
+          "assemblies": []
+        },
+        "719.009": {
+          "name": "BOTTOM FILL",
+          "description": "Subcategory for bottom fill",
+          "assemblies": []
+        },
+        "719.010": {
+          "name": "TEMPERATURE SENSOR",
+          "description": "Subcategory for temperature sensor",
+          "assemblies": []
+        },
+        "719.011": {
+          "name": "POWER BAR",
+          "description": "Subcategory for power bar",
+          "assemblies": []
+        },
+        "719.012": {
+          "name": "SINK CASTERS/LEVELING FEET",
+          "description": "Subcategory for sink casters/leveling feet",
+          "assemblies": []
+        },
+        "719.013": {
+          "name": "OVERFLOW SENSOR",
+          "description": "Subcategory for overflow sensor",
+          "assemblies": []
+        },
+        "719.014": {
+          "name": "LIFTER COMPONENT",
+          "description": "Subcategory for lifter component",
+          "assemblies": []
+        },
+        "719.015": {
+          "name": "ACCESSORY FAUCET",
+          "description": "Subcategory for accessory faucet",
+          "assemblies": []
+        },
+        "719.016": {
+          "name": "CONTROL BOX",
+          "description": "Subcategory for control box",
+          "assemblies": []
+        },
+        "719.017": {
+          "name": "DRAIN HOSE COMPONENT",
+          "description": "Subcategory for drain hose component",
+          "assemblies": []
+        },
+        "719.018": {
+          "name": "OTHERS",
+          "description": "Subcategory for others",
+          "assemblies": []
+        },
+        "719.019": {
+          "name": "E-SINK BOARD",
+          "description": "Subcategory for e-sink board",
+          "assemblies": []
+        },
+        "719.020": {
+          "name": "E-DRAIN BOARD",
+          "description": "Subcategory for e-drain board",
+          "assemblies": []
+        },
+        "719.021": {
+          "name": "OVERHEAD LIGHT BOARD",
+          "description": "Subcategory for overhead light board",
+          "assemblies": []
+        },
+        "719.022": {
+          "name": "BASIN LIGHT BOARD",
+          "description": "Subcategory for basin light board",
+          "assemblies": []
+        },
+        "719.023": {
+          "name": "DOSING PUMP BOARD",
+          "description": "Subcategory for dosing pump board",
+          "assemblies": []
+        },
+        "719.024": {
+          "name": "FLUSHING PUMP BOARD",
+          "description": "Subcategory for flushing pump board",
+          "assemblies": []
+        },
+        "719.025": {
+          "name": "DOSING PUMP",
+          "description": "Subcategory for dosing pump",
+          "assemblies": []
+        },
+        "719.026": {
+          "name": "DOSING PUMP & TUBE SET",
+          "description": "Subcategory for dosing pump & tube set",
+          "assemblies": []
+        },
+        "719.027": {
+          "name": "UPGRADE KITS",
+          "description": "Subcategory for upgrade kits",
+          "assemblies": []
+        }
+      }
+    },
+    "720": {
+      "name": "ACCESSORY LIST",
+      "description": "Category for accessory list",
+      "subcategories": {
+        "720.702": {
+          "name": "BASKETS, BINS & SHELVES",
+          "description": "Subcategory for baskets, bins & shelves",
+          "assemblies": []
+        },
+        "720.703": {
+          "name": "HOLDERS, PLATES & HANGERS",
+          "description": "Subcategory for holders, plates & hangers",
+          "assemblies": []
+        },
+        "720.704": {
+          "name": "LIGHTING ADD-ONS",
+          "description": "Subcategory for lighting add-ons",
+          "assemblies": []
+        },
+        "720.705": {
+          "name": "ELECTRONIC & DIGITAL ADD-ONS",
+          "description": "Subcategory for electronic & digital add-ons",
+          "assemblies": []
+        },
+        "720.706": {
+          "name": "FAUCET, OUTLET, DRAIN, SPRAYER KITS",
+          "description": "Subcategory for faucet, outlet, drain, sprayer kits",
+          "assemblies": []
+        },
+        "720.707": {
+          "name": "DRAWERS & COMPARTMENTS",
+          "description": "Subcategory for drawers & compartments",
+          "assemblies": []
+        },
+        "720.701": {
+          "name": "MANUAL",
+          "description": "Subcategory for manual",
+          "assemblies": []
+        }
+      }
+    },
+    "721": {
+      "name": "SINK BODY",
+      "description": "Category for sink body",
+      "subcategories": {
+        "721.709": {
+          "name": "SINK BODY ASSEMBLY",
+          "description": "Subcategory for sink body assembly",
+          "assemblies": []
+        },
+        "721.710": {
+          "name": "SINK BODY TYPE",
+          "description": "Subcategory for sink body type",
+          "assemblies": []
+        },
+        "721.711": {
+          "name": "CASTERS AND LIFTERS",
+          "description": "Subcategory for casters and lifters",
+          "assemblies": []
+        }
+      }
+    },
+    "722": {
+      "name": "BASIN",
+      "description": "Category for basin",
+      "subcategories": {
+        "722.712": {
+          "name": "SINK BASIN SIZES",
+          "description": "Subcategory for sink basin sizes",
+          "assemblies": []
+        },
+        "722.713": {
+          "name": "BASIN TYPE",
+          "description": "Subcategory for basin type",
+          "assemblies": []
+        },
+        "722.714": {
+          "name": "SINK BASIN SUB-ASSEMBLY",
+          "description": "Subcategory for sink basin sub-assembly",
+          "assemblies": []
+        }
+      }
+    },
+    "723": {
+      "name": "PEGBOARD",
+      "description": "Category for pegboard",
+      "subcategories": {
+        "723.715": {
+          "name": "PEGBOARD SIZES",
+          "description": "Subcategory for pegboard sizes",
+          "assemblies": []
+        },
+        "723.716": {
+          "name": "PEGBOARD CONFIGURATION",
+          "description": "Subcategory for pegboard configuration",
+          "assemblies": []
+        },
+        "723.717": {
+          "name": "OVERHEAD LIGHT SUB ASSEMBLY",
+          "description": "Subcategory for overhead light sub assembly",
+          "assemblies": []
+        }
+      }
+    }
+  }
+}
