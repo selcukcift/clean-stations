@@ -195,6 +195,21 @@ const getPegboardSizeDescription = (length: string | number) => {
   return `${length}" x 36" H`
 }
 
+// Generate model name using the same logic as overview
+const generateDisplayModel = (config: any) => {
+  if (!config) return 'N/A'
+  
+  const basinCount = config.basins?.length || config.basinConfigurations?.length || 1
+  const length = config.length || 48
+  const width = config.width || 30
+  
+  const lengthStr = length.toString().padStart(2, '0')
+  const widthStr = width.toString().padStart(2, '0')
+  const dimensions = lengthStr + widthStr
+  
+  return `T2-${basinCount}B-${dimensions}HA`
+}
+
 export default function OrderDetailsPage() {
   const params = useParams()
   const router = useRouter()
