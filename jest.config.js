@@ -24,6 +24,10 @@ const customJestConfig = {
     '/e2e/',
     '/playwright/'
   ],
+  transformIgnorePatterns: [
+    '/node_modules/(?!jose)/', // Transform 'jose' but not other node_modules
+    '^.+\\.module\\.(css|sass|scss)$',
+  ],
   collectCoverageFrom: [
     'app/**/*.{js,jsx,ts,tsx}',
     'components/**/*.{js,jsx,ts,tsx}',
