@@ -21,6 +21,14 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   Package,
@@ -58,9 +66,11 @@ interface ServiceOrder {
 interface BOMItem {
   id: string
   name: string
-  partNumber?: string
+  partIdOrAssemblyId?: string
   quantity: number
-  type: "PART" | "ASSEMBLY"
+  itemType: "PART" | "ASSEMBLY"
+  category?: string
+  isCustom?: boolean
   children?: BOMItem[]
 }
 
@@ -81,6 +91,7 @@ export function SimpleBOMApproval({ onOrderUpdate }: SimpleBOMApprovalProps) {
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [loadingBom, setLoadingBom] = useState<Set<string>>(new Set())
   const [activeTab, setActiveTab] = useState<"pending" | "approved" | "all">("pending")
+  const [bomDialogOpen, setBomDialogOpen] = useState<string | null>(null)
 
   useEffect(() => {
     fetchAllOrders()
@@ -137,56 +148,54 @@ export function SimpleBOMApproval({ onOrderUpdate }: SimpleBOMApprovalProps) {
 
     setLoadingBom(prev => new Set(prev).add(orderId))
     try {
-      // Always force generate BOM to ensure we have the latest data
-      const response = await nextJsApiClient.post(`/orders/${orderId}/generate-bom`, {
-        forceRegenerate: true
-      })
+      let bom: BOMItem[] = []
       
-      console.log("Full API Response:", response.data)
-      
-      if (response.data.success) {
-        const bomResponse = response.data.data.bom
-        const bom = bomResponse?.hierarchical || bomResponse || []
-        console.log("BOM Response Details:", { 
-          orderId, 
-          fullResponse: response.data.data,
-          bomResponse, 
-          extractedBom: bom,
-          bomLength: bom.length 
-        })
+      if (forceRegenerate) {
+        // First generate/regenerate the BOM
+        await nextJsApiClient.post(`/orders/${orderId}/generate-bom`)
         
-        setBomData(prev => {
-          const newBomData = { ...prev, [orderId]: bom }
-          console.log("Updated BOM Data:", newBomData)
-          return newBomData
-        })
-        
-        // Show appropriate success toast
-        if (bom.length > 0) {
-          toast({
-            title: "BOM Generated",
-            description: `CleanStation production BOM generated with ${bom.length} items`,
-          })
-        } else {
-          toast({
-            title: "BOM Generated",
-            description: "CleanStation production BOM generated (no items found)",
-            variant: "destructive",
-          })
+        // Then fetch the order data to get the BOM
+        const orderResponse = await nextJsApiClient.get(`/orders/${orderId}`)
+        if (orderResponse.data.success && orderResponse.data.data.generatedBoms?.length > 0) {
+          bom = orderResponse.data.data.generatedBoms[0].bomItems || []
         }
       } else {
-        console.log("API response not successful:", response.data)
+        // Just fetch existing BOM data from the order
+        const orderResponse = await nextJsApiClient.get(`/orders/${orderId}`)
+        if (orderResponse.data.success && orderResponse.data.data.generatedBoms?.length > 0) {
+          bom = orderResponse.data.data.generatedBoms[0].bomItems || []
+        } else {
+          // No existing BOM, generate it
+          await nextJsApiClient.post(`/orders/${orderId}/generate-bom`)
+          const newOrderResponse = await nextJsApiClient.get(`/orders/${orderId}`)
+          if (newOrderResponse.data.success && newOrderResponse.data.data.generatedBoms?.length > 0) {
+            bom = newOrderResponse.data.data.generatedBoms[0].bomItems || []
+          }
+        }
+      }
+      
+      console.log("BOM Data:", { orderId, bomLength: bom.length, bom })
+      
+      setBomData(prev => ({ ...prev, [orderId]: bom }))
+      
+      // Show success toast
+      if (bom.length > 0) {
         toast({
-          title: "BOM Generation Failed",
-          description: response.data.message || "API response was not successful",
+          title: "BOM Loaded",
+          description: `CleanStation production BOM loaded with ${bom.length} items`,
+        })
+      } else {
+        toast({
+          title: "BOM Generated",
+          description: "CleanStation production BOM generated - please refresh to see items",
           variant: "destructive",
         })
       }
     } catch (error) {
-      console.error("Error generating BOM:", error)
+      console.error("Error fetching BOM:", error)
       toast({
-        title: "BOM Generation Failed",
-        description: "Failed to generate CleanStation production BOM",
+        title: "BOM Loading Failed",
+        description: "Failed to load CleanStation production BOM",
         variant: "destructive",
       })
     } finally {
@@ -198,15 +207,9 @@ export function SimpleBOMApproval({ onOrderUpdate }: SimpleBOMApprovalProps) {
     }
   }
 
-  const handleOrderExpand = (orderId: string) => {
-    const newExpanded = new Set(expandedOrders)
-    if (newExpanded.has(orderId)) {
-      newExpanded.delete(orderId)
-    } else {
-      newExpanded.add(orderId)
-      fetchBOMData(orderId, true) // Force regenerate BOM when expanding
-    }
-    setExpandedOrders(newExpanded)
+  const handleBOMDialogOpen = async (orderId: string) => {
+    setBomDialogOpen(orderId)
+    await fetchBOMData(orderId, true) // Force regenerate BOM when opening dialog
   }
 
   const handleOrderSelection = (orderId: string) => {
@@ -297,12 +300,12 @@ export function SimpleBOMApproval({ onOrderUpdate }: SimpleBOMApprovalProps) {
   const renderBOMItems = (items: BOMItem[], level = 0) => {
     return items.map((item, index) => {
       // Check if this is a sink body part (721.709 series or similar)
-      const isSinkBodyPart = item.partNumber?.includes('721.709') || 
+      const isSinkBodyPart = item.partIdOrAssemblyId?.includes('721.709') || 
                               item.name?.toLowerCase().includes('sink body') ||
                               item.name?.toLowerCase().includes('frame')
       
       // Check for basin parts (722 series)
-      const isBasinPart = item.partNumber?.includes('722.') ||
+      const isBasinPart = item.partIdOrAssemblyId?.includes('722.') ||
                           item.name?.toLowerCase().includes('basin') ||
                           item.name?.toLowerCase().includes('e-sink') ||
                           item.name?.toLowerCase().includes('e-drain')
@@ -311,12 +314,17 @@ export function SimpleBOMApproval({ onOrderUpdate }: SimpleBOMApprovalProps) {
         <div key={`${item.id}-${index}`} className={`ml-${level * 4}`}>
           <div className="flex items-center justify-between py-2 border-b border-gray-100 last:border-b-0">
             <div className="flex items-center gap-2">
-              <div className={`w-2 h-2 rounded-full ${item.type === "ASSEMBLY" ? "bg-blue-500" : "bg-green-500"}`} />
-              <span className="font-mono text-sm">{item.partNumber || item.id}</span>
+              <div className={`w-2 h-2 rounded-full ${item.itemType === "ASSEMBLY" ? "bg-blue-500" : "bg-green-500"}`} />
+              <span className="font-mono text-sm">{item.partIdOrAssemblyId || item.id}</span>
               <span className="text-sm text-gray-600">{item.name}</span>
               <Badge variant="outline" className="text-xs">
-                {item.type === "ASSEMBLY" ? "Assembly" : "Part"}
+                {item.itemType === "ASSEMBLY" ? "Assembly" : "Part"}
               </Badge>
+              {item.category && (
+                <Badge variant="secondary" className="text-xs">
+                  {item.category}
+                </Badge>
+              )}
               {isSinkBodyPart && (
                 <Badge className="text-xs bg-orange-100 text-orange-700 border-orange-200">
                   Sink Body Mfg
@@ -344,7 +352,7 @@ export function SimpleBOMApproval({ onOrderUpdate }: SimpleBOMApprovalProps) {
 
     const countItems = (items: BOMItem[]) => {
       items.forEach(item => {
-        if (item.type === "PART") {
+        if (item.itemType === "PART") {
           totalParts += item.quantity
         } else {
           totalAssemblies += item.quantity
@@ -383,6 +391,72 @@ export function SimpleBOMApproval({ onOrderUpdate }: SimpleBOMApprovalProps) {
 
   const formatStatus = (status: string) => {
     return status.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase())
+  }
+
+  const renderBOMDialog = (orderId: string) => {
+    const orderBOM = bomData[orderId] || []
+    const isLoadingBOM = loadingBom.has(orderId)
+    const stats = orderBOM.length > 0 ? calculateOrderStats(orderBOM) : null
+    const order = [...pendingOrders, ...approvedOrders, ...allOrders].find(o => o.id === orderId)
+
+    return (
+      <Dialog open={bomDialogOpen === orderId} onOpenChange={(open) => !open && setBomDialogOpen(null)}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle>CleanStation Production BOM</DialogTitle>
+            <DialogDescription>
+              {order ? `${order.poNumber} - ${order.customerName}` : "Order BOM Details"}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="flex-1 overflow-y-auto">
+            {isLoadingBOM ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-8 h-8 animate-spin mr-2" />
+                <span>Generating BOM...</span>
+              </div>
+            ) : orderBOM.length > 0 ? (
+              <div className="space-y-4">
+                {/* BOM Summary */}
+                {stats && (
+                  <div className="grid grid-cols-3 gap-4 p-4 bg-gray-50 rounded-lg">
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-blue-600">{stats.totalParts}</div>
+                      <div className="text-sm text-gray-600">Parts</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-green-600">{stats.totalAssemblies}</div>
+                      <div className="text-sm text-gray-600">Assemblies</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-purple-600">{stats.totalParts + stats.totalAssemblies}</div>
+                      <div className="text-sm text-gray-600">Total Items</div>
+                    </div>
+                  </div>
+                )}
+
+                {/* BOM Items */}
+                <div className="border rounded-lg overflow-hidden">
+                  <div className="bg-gray-50 px-4 py-2 border-b">
+                    <h4 className="font-medium">CleanStation Production BOM</h4>
+                  </div>
+                  <div className="p-4">
+                    {renderBOMItems(orderBOM)}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <Alert>
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  No production BOM data available. Please generate sink configuration BOM first.
+                </AlertDescription>
+              </Alert>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+    )
   }
 
   return (
@@ -501,18 +575,19 @@ export function SimpleBOMApproval({ onOrderUpdate }: SimpleBOMApprovalProps) {
                             )}
                           </div>
                           <div className="flex items-center gap-2">
-                            <Collapsible open={isExpanded} onOpenChange={() => handleOrderExpand(order.id)}>
-                              <CollapsibleTrigger asChild>
-                                <Button variant="ghost" size="sm">
-                                  {isExpanded ? (
-                                    <ChevronDown className="w-4 h-4" />
-                                  ) : (
-                                    <ChevronRight className="w-4 h-4" />
-                                  )}
-                                  Generate & View BOM
-                                </Button>
-                              </CollapsibleTrigger>
-                            </Collapsible>
+                            <Button 
+                              variant="ghost" 
+                              size="sm"
+                              onClick={() => handleBOMDialogOpen(order.id)}
+                              disabled={loadingBom.has(order.id)}
+                            >
+                              {loadingBom.has(order.id) ? (
+                                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                              ) : (
+                                <Eye className="w-4 h-4 mr-2" />
+                              )}
+                              Generate & View BOM
+                            </Button>
                             <Button
                               onClick={() => handleApproveSingle(order.id)}
                               disabled={actionLoading === order.id}
@@ -528,8 +603,6 @@ export function SimpleBOMApproval({ onOrderUpdate }: SimpleBOMApprovalProps) {
                         </div>
                       </CardHeader>
 
-                      <Collapsible open={isExpanded} onOpenChange={() => handleOrderExpand(order.id)}>
-                        <CollapsibleContent>
                           <CardContent className="pt-0">
                             {isLoadingBOM ? (
                               <div className="flex items-center justify-center py-8">
@@ -942,6 +1015,11 @@ export function SimpleBOMApproval({ onOrderUpdate }: SimpleBOMApprovalProps) {
           )}
         </TabsContent>
       </Tabs>
+      
+      {/* BOM Dialogs */}
+      {[...pendingOrders, ...approvedOrders, ...allOrders].map((order) => 
+        renderBOMDialog(order.id)
+      )}
     </div>
   )
 }
