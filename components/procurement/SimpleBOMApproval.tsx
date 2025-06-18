@@ -131,22 +131,55 @@ export function SimpleBOMApproval({ onOrderUpdate }: SimpleBOMApprovalProps) {
     }
   }
 
-  const fetchBOMData = async (orderId: string) => {
-    if (bomData[orderId]) return // Already loaded
+  const fetchBOMData = async (orderId: string, forceRegenerate: boolean = false) => {
+    // Skip if already loaded and not forcing regenerate
+    if (bomData[orderId] && !forceRegenerate) return
 
     setLoadingBom(prev => new Set(prev).add(orderId))
     try {
-      // Force generate BOM to ensure we have the latest data
+      // Always force generate BOM to ensure we have the latest data
       const response = await nextJsApiClient.post(`/orders/${orderId}/generate-bom`, {
         forceRegenerate: true
       })
+      
+      console.log("Full API Response:", response.data)
+      
       if (response.data.success) {
-        const bom = response.data.data.bom?.hierarchical || []
-        setBomData(prev => ({ ...prev, [orderId]: bom }))
+        const bomResponse = response.data.data.bom
+        const bom = bomResponse?.hierarchical || bomResponse || []
+        console.log("BOM Response Details:", { 
+          orderId, 
+          fullResponse: response.data.data,
+          bomResponse, 
+          extractedBom: bom,
+          bomLength: bom.length 
+        })
         
+        setBomData(prev => {
+          const newBomData = { ...prev, [orderId]: bom }
+          console.log("Updated BOM Data:", newBomData)
+          return newBomData
+        })
+        
+        // Show appropriate success toast
+        if (bom.length > 0) {
+          toast({
+            title: "BOM Generated",
+            description: `CleanStation production BOM generated with ${bom.length} items`,
+          })
+        } else {
+          toast({
+            title: "BOM Generated",
+            description: "CleanStation production BOM generated (no items found)",
+            variant: "destructive",
+          })
+        }
+      } else {
+        console.log("API response not successful:", response.data)
         toast({
-          title: "BOM Generated",
-          description: "CleanStation production BOM has been generated successfully",
+          title: "BOM Generation Failed",
+          description: response.data.message || "API response was not successful",
+          variant: "destructive",
         })
       }
     } catch (error) {
@@ -171,7 +204,7 @@ export function SimpleBOMApproval({ onOrderUpdate }: SimpleBOMApprovalProps) {
       newExpanded.delete(orderId)
     } else {
       newExpanded.add(orderId)
-      fetchBOMData(orderId) // Load BOM when expanding
+      fetchBOMData(orderId, true) // Force regenerate BOM when expanding
     }
     setExpandedOrders(newExpanded)
   }
@@ -431,6 +464,11 @@ export function SimpleBOMApproval({ onOrderUpdate }: SimpleBOMApprovalProps) {
                   const orderBOM = bomData[order.id] || []
                   const isLoadingBOM = loadingBom.has(order.id)
                   const stats = orderBOM.length > 0 ? calculateOrderStats(orderBOM) : null
+                  
+                  // Debug logging for pending orders
+                  if (isExpanded) {
+                    console.log("Pending Order BOM Debug:", { orderId: order.id, orderBOM, bomDataKeys: Object.keys(bomData), isLoadingBOM })
+                  }
 
                   const wantDate = order.wantDate ? new Date(order.wantDate) : null
                   const daysUntilDue = wantDate
@@ -566,6 +604,11 @@ export function SimpleBOMApproval({ onOrderUpdate }: SimpleBOMApprovalProps) {
                 const orderBOM = bomData[order.id] || []
                 const isLoadingBOM = loadingBom.has(order.id)
                 const stats = orderBOM.length > 0 ? calculateOrderStats(orderBOM) : null
+                
+                // Debug logging for approved orders
+                if (isExpanded) {
+                  console.log("Approved Order BOM Debug:", { orderId: order.id, orderBOM, bomDataKeys: Object.keys(bomData), isLoadingBOM })
+                }
 
                 const wantDate = order.wantDate ? new Date(order.wantDate) : null
                 const daysUntilDue = wantDate
