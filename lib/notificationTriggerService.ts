@@ -145,7 +145,8 @@ class NotificationTriggerService {
     orderId: string,
     oldStatus: string,
     newStatus: string,
-    changedBy?: string
+    changedBy?: string,
+    notifyAll: boolean = false
   ): Promise<void> {
     try {
       const order = await prisma.order.findUnique({
@@ -166,7 +167,13 @@ class NotificationTriggerService {
         buildNumber: order.buildNumbers[0] // First build number for display
       }
 
-      // Notify relevant roles based on the new status
+      // If notifyAll is true, send to all active users
+      if (notifyAll) {
+        await this.sendNotificationToAllUsers('ORDER_STATUS_CHANGE', data)
+        return
+      }
+
+      // Otherwise, notify relevant roles based on the new status
       const rolesToNotify = this.getRolesForOrderStatus(newStatus)
       
       // Also notify the order creator and current assignee
@@ -288,12 +295,36 @@ class NotificationTriggerService {
   }
 
   /**
+   * Send notification to ALL active users in the system
+   */
+  async sendNotificationToAllUsers(
+    notificationType: string,
+    data: NotificationData
+  ): Promise<void> {
+    try {
+      const allActiveUsers = await prisma.user.findMany({
+        where: {
+          isActive: true
+        },
+        select: { id: true }
+      })
+
+      const userIds = allActiveUsers.map(user => user.id)
+      console.log(`Sending ${notificationType} notification to ${userIds.length} active users`)
+      
+      await this.sendNotificationToUsers(userIds, notificationType, data)
+    } catch (error) {
+      console.error('Error sending notification to all users:', error)
+    }
+  }
+
+  /**
    * Trigger system alert notifications
    */
   async triggerSystemAlert(
     message: string,
     alertType: string = 'GENERAL',
-    targetRoles?: string[]
+    targetRoles?: string[] | 'ALL'
   ): Promise<void> {
     try {
       const data: NotificationData = {
@@ -301,11 +332,40 @@ class NotificationTriggerService {
         alertType
       }
 
-      const roles = targetRoles || ['ADMIN', 'PRODUCTION_COORDINATOR']
-      await this.sendNotificationToRoles(roles, 'SYSTEM_ALERT', data)
+      // If targetRoles is 'ALL', send to all users
+      if (targetRoles === 'ALL') {
+        await this.sendNotificationToAllUsers('SYSTEM_ALERT', data)
+      } else {
+        const roles = targetRoles || ['ADMIN', 'PRODUCTION_COORDINATOR']
+        await this.sendNotificationToRoles(roles, 'SYSTEM_ALERT', data)
+      }
 
     } catch (error) {
       console.error('Error triggering system alert notification:', error)
+    }
+  }
+
+  /**
+   * Send broadcast notification to all users (typically for important announcements)
+   */
+  async sendBroadcastNotification(
+    title: string,
+    message: string,
+    priority: 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT' = 'NORMAL'
+  ): Promise<void> {
+    try {
+      const data: NotificationData = {
+        message,
+        title,
+        priority
+      }
+
+      await this.sendNotificationToAllUsers('SYSTEM_ALERT', data)
+      
+      console.log(`✅ Broadcast notification sent to all users: ${title}`)
+    } catch (error) {
+      console.error('Error sending broadcast notification:', error)
+      throw error
     }
   }
 

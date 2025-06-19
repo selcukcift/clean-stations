@@ -19,7 +19,8 @@ const StatusUpdateSchema = z.object({
     'READY_FOR_SHIP',
     'SHIPPED'
   ]),
-  notes: z.string().optional()
+  notes: z.string().optional(),
+  notifyAll: z.boolean().optional() // Flag to notify all users
 })
 
 // Status transition validation logic
@@ -41,7 +42,7 @@ function validateStatusTransition(
   // Define allowed transitions based on current status and role
   const transitions: Record<string, Record<string, string[]>> = {
     'ORDER_CREATED': {
-      'PROCUREMENT_SPECIALIST': ['READY_FOR_PRE_QC'], // Simplified: Direct approval to Pre-QC
+      'PROCUREMENT_SPECIALIST': ['PARTS_SENT_WAITING_ARRIVAL'], // Procurement sends parts first
       'PRODUCTION_COORDINATOR': ['PARTS_SENT_WAITING_ARRIVAL', 'READY_FOR_PRE_QC']
     },
     'PARTS_SENT_WAITING_ARRIVAL': {
@@ -103,7 +104,7 @@ export async function PUT(
 
     // Parse and validate request body
     const body = await request.json()
-    const { newStatus, notes } = StatusUpdateSchema.parse(body)
+    const { newStatus, notes, notifyAll } = StatusUpdateSchema.parse(body)
 
     // Fetch the current order
     const order = await prisma.order.findUnique({
@@ -191,7 +192,8 @@ export async function PUT(
       orderId, 
       order.orderStatus, 
       newStatus, 
-      user.id
+      user.id,
+      notifyAll || false
     ).catch(error => {
       console.error('Failed to trigger order status change notifications:', error)
     })

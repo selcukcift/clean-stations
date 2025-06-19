@@ -95,6 +95,7 @@ export function SimpleBOMApproval({ onOrderUpdate }: SimpleBOMApprovalProps) {
   const [bomDialogOpen, setBomDialogOpen] = useState<string | null>(null)
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set())
   const [pdfExporting, setPdfExporting] = useState<Set<string>>(new Set())
+  const [notifyAllUsers, setNotifyAllUsers] = useState(false)
 
   useEffect(() => {
     fetchAllOrders()
@@ -116,7 +117,7 @@ export function SimpleBOMApproval({ onOrderUpdate }: SimpleBOMApprovalProps) {
           (order: Order) => order.orderStatus === "ORDER_CREATED"
         )
         const approved = allOrders.filter(
-          (order: Order) => ["READY_FOR_PRE_QC", "READY_FOR_PRODUCTION", "TESTING_COMPLETE", 
+          (order: Order) => ["PARTS_SENT_WAITING_ARRIVAL", "READY_FOR_PRE_QC", "READY_FOR_PRODUCTION", "TESTING_COMPLETE", 
                             "PACKAGING_COMPLETE", "READY_FOR_FINAL_QC", "READY_FOR_SHIP", "SHIPPED"].includes(order.orderStatus)
         )
         
@@ -314,8 +315,9 @@ export function SimpleBOMApproval({ onOrderUpdate }: SimpleBOMApprovalProps) {
     try {
       const approvalPromises = Array.from(selectedOrders).map(orderId =>
         nextJsApiClient.put(`/orders/${orderId}/status`, {
-          newStatus: "READY_FOR_PRE_QC",
-          notes: "BOM approved by procurement specialist",
+          newStatus: "PARTS_SENT_WAITING_ARRIVAL",
+          notes: "BOM approved by procurement specialist - parts ordered",
+          notifyAll: notifyAllUsers
         })
       )
 
@@ -344,8 +346,9 @@ export function SimpleBOMApproval({ onOrderUpdate }: SimpleBOMApprovalProps) {
     setActionLoading(orderId)
     try {
       await nextJsApiClient.put(`/orders/${orderId}/status`, {
-        newStatus: "READY_FOR_PRE_QC",
-        notes: "BOM approved by procurement specialist",
+        newStatus: "PARTS_SENT_WAITING_ARRIVAL",
+        notes: "BOM approved by procurement specialist - parts ordered",
+        notifyAll: notifyAllUsers
       })
 
       toast({
@@ -651,6 +654,7 @@ export function SimpleBOMApproval({ onOrderUpdate }: SimpleBOMApprovalProps) {
 
   const getStatusBadgeColor = (status: string) => {
     const colors: Record<string, string> = {
+      "PARTS_SENT_WAITING_ARRIVAL": "bg-amber-100 text-amber-700",
       "READY_FOR_PRE_QC": "bg-blue-100 text-blue-700",
       "READY_FOR_PRODUCTION": "bg-green-100 text-green-700", 
       "TESTING_COMPLETE": "bg-yellow-100 text-yellow-700",
@@ -811,12 +815,24 @@ export function SimpleBOMApproval({ onOrderUpdate }: SimpleBOMApprovalProps) {
             <>
               {/* Bulk Actions */}
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    checked={selectedOrders.size === pendingOrders.length && pendingOrders.length > 0}
-                    onCheckedChange={handleSelectAll}
-                  />
-                  <span className="text-sm">Select all ({selectedOrders.size})</span>
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      checked={selectedOrders.size === pendingOrders.length && pendingOrders.length > 0}
+                      onCheckedChange={handleSelectAll}
+                    />
+                    <span className="text-sm">Select all ({selectedOrders.size})</span>
+                  </div>
+                  <div className="flex items-center gap-2 border-l pl-4">
+                    <Checkbox
+                      id="notify-all"
+                      checked={notifyAllUsers}
+                      onCheckedChange={(checked) => setNotifyAllUsers(checked as boolean)}
+                    />
+                    <label htmlFor="notify-all" className="text-sm cursor-pointer">
+                      Notify all users
+                    </label>
+                  </div>
                 </div>
                 <Button
                   onClick={handleApproveSelected}
@@ -1057,12 +1073,24 @@ export function SimpleBOMApproval({ onOrderUpdate }: SimpleBOMApprovalProps) {
           {/* Bulk Actions for All Orders Tab */}
           {allOrders.some(order => order.orderStatus === "ORDER_CREATED") && (
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  checked={selectedOrders.size === allOrders.filter(order => order.orderStatus === "ORDER_CREATED").length && allOrders.filter(order => order.orderStatus === "ORDER_CREATED").length > 0}
-                  onCheckedChange={handleSelectAll}
-                />
-                <span className="text-sm">Select all pending ({selectedOrders.size})</span>
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    checked={selectedOrders.size === allOrders.filter(order => order.orderStatus === "ORDER_CREATED").length && allOrders.filter(order => order.orderStatus === "ORDER_CREATED").length > 0}
+                    onCheckedChange={handleSelectAll}
+                  />
+                  <span className="text-sm">Select all pending ({selectedOrders.size})</span>
+                </div>
+                <div className="flex items-center gap-2 border-l pl-4">
+                  <Checkbox
+                    id="notify-all-all-tab"
+                    checked={notifyAllUsers}
+                    onCheckedChange={(checked) => setNotifyAllUsers(checked as boolean)}
+                  />
+                  <label htmlFor="notify-all-all-tab" className="text-sm cursor-pointer">
+                    Notify all users
+                  </label>
+                </div>
               </div>
               <Button
                 onClick={handleApproveSelected}
@@ -1188,9 +1216,11 @@ export function SimpleBOMApproval({ onOrderUpdate }: SimpleBOMApprovalProps) {
       </Tabs>
       
       {/* BOM Dialogs */}
-      {[...pendingOrders, ...approvedOrders, ...allOrders].map((order) => 
-        renderBOMDialog(order.id)
-      )}
+      {Array.from(new Map(allOrders.map(order => [order.id, order])).values()).map((order) => (
+        <div key={order.id}>
+          {renderBOMDialog(order.id)}
+        </div>
+      ))}
     </div>
   )
 }
