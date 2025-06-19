@@ -17,11 +17,6 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible"
-import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -35,8 +30,6 @@ import {
   CheckCircle,
   Clock,
   AlertCircle,
-  ChevronDown,
-  ChevronRight,
   Eye,
   Loader2,
 } from "lucide-react"
@@ -85,7 +78,6 @@ export function SimpleBOMApproval({ onOrderUpdate }: SimpleBOMApprovalProps) {
   const [allOrders, setAllOrders] = useState<Order[]>([])
   const [serviceOrders, setServiceOrders] = useState<ServiceOrder[]>([])
   const [selectedOrders, setSelectedOrders] = useState<Set<string>>(new Set())
-  const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set())
   const [bomData, setBomData] = useState<Record<string, BOMItem[]>>({})
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
@@ -533,16 +525,7 @@ export function SimpleBOMApproval({ onOrderUpdate }: SimpleBOMApprovalProps) {
               {/* Pending Orders Grid */}
               <div className="grid gap-4">
                 {pendingOrders.map((order) => {
-                  const isExpanded = expandedOrders.has(order.id)
                   const isSelected = selectedOrders.has(order.id)
-                  const orderBOM = bomData[order.id] || []
-                  const isLoadingBOM = loadingBom.has(order.id)
-                  const stats = orderBOM.length > 0 ? calculateOrderStats(orderBOM) : null
-                  
-                  // Debug logging for pending orders
-                  if (isExpanded) {
-                    console.log("Pending Order BOM Debug:", { orderId: order.id, orderBOM, bomDataKeys: Object.keys(bomData), isLoadingBOM })
-                  }
 
                   const wantDate = order.wantDate ? new Date(order.wantDate) : null
                   const daysUntilDue = wantDate
@@ -603,53 +586,6 @@ export function SimpleBOMApproval({ onOrderUpdate }: SimpleBOMApprovalProps) {
                         </div>
                       </CardHeader>
 
-                          <CardContent className="pt-0">
-                            {isLoadingBOM ? (
-                              <div className="flex items-center justify-center py-8">
-                                <Loader2 className="w-6 h-6 animate-spin mr-2" />
-                                <span>Loading BOM...</span>
-                              </div>
-                            ) : orderBOM.length > 0 ? (
-                              <div className="space-y-4">
-                                {/* BOM Summary */}
-                                {stats && (
-                                  <div className="grid grid-cols-3 gap-4 p-4 bg-gray-50 rounded-lg">
-                                    <div className="text-center">
-                                      <div className="text-2xl font-bold text-blue-600">{stats.totalParts}</div>
-                                      <div className="text-sm text-gray-600">Parts</div>
-                                    </div>
-                                    <div className="text-center">
-                                      <div className="text-2xl font-bold text-green-600">{stats.totalAssemblies}</div>
-                                      <div className="text-sm text-gray-600">Assemblies</div>
-                                    </div>
-                                    <div className="text-center">
-                                      <div className="text-2xl font-bold text-purple-600">{stats.totalParts + stats.totalAssemblies}</div>
-                                      <div className="text-sm text-gray-600">Total Items</div>
-                                    </div>
-                                  </div>
-                                )}
-
-                                {/* BOM Items */}
-                                <div className="border rounded-lg overflow-hidden">
-                                  <div className="bg-gray-50 px-4 py-2 border-b">
-                                    <h4 className="font-medium">Bill of Materials</h4>
-                                  </div>
-                                  <div className="p-4 max-h-96 overflow-y-auto">
-                                    {renderBOMItems(orderBOM)}
-                                  </div>
-                                </div>
-                              </div>
-                            ) : (
-                              <Alert>
-                                <AlertCircle className="h-4 w-4" />
-                                <AlertDescription>
-                                  No BOM data available. Please generate BOM first.
-                                </AlertDescription>
-                              </Alert>
-                            )}
-                          </CardContent>
-                        </CollapsibleContent>
-                      </Collapsible>
                     </Card>
                   )
                 })}
@@ -673,15 +609,6 @@ export function SimpleBOMApproval({ onOrderUpdate }: SimpleBOMApprovalProps) {
           ) : (
             <div className="grid gap-4">
               {approvedOrders.map((order) => {
-                const isExpanded = expandedOrders.has(order.id)
-                const orderBOM = bomData[order.id] || []
-                const isLoadingBOM = loadingBom.has(order.id)
-                const stats = orderBOM.length > 0 ? calculateOrderStats(orderBOM) : null
-                
-                // Debug logging for approved orders
-                if (isExpanded) {
-                  console.log("Approved Order BOM Debug:", { orderId: order.id, orderBOM, bomDataKeys: Object.keys(bomData), isLoadingBOM })
-                }
 
                 const wantDate = order.wantDate ? new Date(order.wantDate) : null
                 const daysUntilDue = wantDate
@@ -712,18 +639,19 @@ export function SimpleBOMApproval({ onOrderUpdate }: SimpleBOMApprovalProps) {
                           )}
                         </div>
                         <div className="flex items-center gap-2">
-                          <Collapsible open={isExpanded} onOpenChange={() => handleOrderExpand(order.id)}>
-                            <CollapsibleTrigger asChild>
-                              <Button variant="ghost" size="sm">
-                                {isExpanded ? (
-                                  <ChevronDown className="w-4 h-4" />
-                                ) : (
-                                  <ChevronRight className="w-4 h-4" />
-                                )}
-                                Generate & View BOM
-                              </Button>
-                            </CollapsibleTrigger>
-                          </Collapsible>
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => handleBOMDialogOpen(order.id)}
+                            disabled={loadingBom.has(order.id)}
+                          >
+                            {loadingBom.has(order.id) ? (
+                              <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                            ) : (
+                              <Eye className="w-4 h-4 mr-2" />
+                            )}
+                            Generate & View BOM
+                          </Button>
                           <Button variant="outline" size="sm" asChild>
                             <a href={`/orders/${order.id}`} target="_blank" rel="noopener noreferrer">
                               <Eye className="w-4 h-4" />
@@ -733,55 +661,6 @@ export function SimpleBOMApproval({ onOrderUpdate }: SimpleBOMApprovalProps) {
                       </div>
                     </CardHeader>
 
-                    <Collapsible open={isExpanded} onOpenChange={() => handleOrderExpand(order.id)}>
-                      <CollapsibleContent>
-                        <CardContent className="pt-0">
-                          {isLoadingBOM ? (
-                            <div className="flex items-center justify-center py-8">
-                              <Loader2 className="w-6 h-6 animate-spin mr-2" />
-                              <span>Loading BOM...</span>
-                            </div>
-                          ) : orderBOM.length > 0 ? (
-                            <div className="space-y-4">
-                              {/* BOM Summary */}
-                              {stats && (
-                                <div className="grid grid-cols-3 gap-4 p-4 bg-gray-50 rounded-lg">
-                                  <div className="text-center">
-                                    <div className="text-2xl font-bold text-blue-600">{stats.totalParts}</div>
-                                    <div className="text-sm text-gray-600">Parts</div>
-                                  </div>
-                                  <div className="text-center">
-                                    <div className="text-2xl font-bold text-green-600">{stats.totalAssemblies}</div>
-                                    <div className="text-sm text-gray-600">Assemblies</div>
-                                  </div>
-                                  <div className="text-center">
-                                    <div className="text-2xl font-bold text-purple-600">{stats.totalParts + stats.totalAssemblies}</div>
-                                    <div className="text-sm text-gray-600">Total Items</div>
-                                  </div>
-                                </div>
-                              )}
-
-                              {/* BOM Items */}
-                              <div className="border rounded-lg overflow-hidden">
-                                <div className="bg-gray-50 px-4 py-2 border-b">
-                                  <h4 className="font-medium">CleanStation Production BOM</h4>
-                                </div>
-                                <div className="p-4 max-h-96 overflow-y-auto">
-                                  {renderBOMItems(orderBOM)}
-                                </div>
-                              </div>
-                            </div>
-                          ) : (
-                            <Alert>
-                              <AlertCircle className="h-4 w-4" />
-                              <AlertDescription>
-                                No production BOM data available. Please generate sink configuration BOM first.
-                              </AlertDescription>
-                            </Alert>
-                          )}
-                        </CardContent>
-                      </CollapsibleContent>
-                    </Collapsible>
                   </Card>
                 )
               })}
@@ -877,7 +756,6 @@ export function SimpleBOMApproval({ onOrderUpdate }: SimpleBOMApprovalProps) {
           ) : (
             <div className="grid gap-4">
               {allOrders.map((order) => {
-                const isExpanded = expandedOrders.has(order.id)
                 const orderBOM = bomData[order.id] || []
                 const isLoadingBOM = loadingBom.has(order.id)
                 const stats = orderBOM.length > 0 ? calculateOrderStats(orderBOM) : null
@@ -924,18 +802,19 @@ export function SimpleBOMApproval({ onOrderUpdate }: SimpleBOMApprovalProps) {
                           )}
                         </div>
                         <div className="flex items-center gap-2">
-                          <Collapsible open={isExpanded} onOpenChange={() => handleOrderExpand(order.id)}>
-                            <CollapsibleTrigger asChild>
-                              <Button variant="ghost" size="sm">
-                                {isExpanded ? (
-                                  <ChevronDown className="w-4 h-4" />
-                                ) : (
-                                  <ChevronRight className="w-4 h-4" />
-                                )}
-                                Generate & View BOM
-                              </Button>
-                            </CollapsibleTrigger>
-                          </Collapsible>
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => handleBOMDialogOpen(order.id)}
+                            disabled={loadingBom.has(order.id)}
+                          >
+                            {loadingBom.has(order.id) ? (
+                              <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                            ) : (
+                              <Eye className="w-4 h-4 mr-2" />
+                            )}
+                            Generate & View BOM
+                          </Button>
                           {isPending ? (
                             <Button
                               onClick={() => handleApproveSingle(order.id)}
@@ -959,55 +838,6 @@ export function SimpleBOMApproval({ onOrderUpdate }: SimpleBOMApprovalProps) {
                       </div>
                     </CardHeader>
 
-                    <Collapsible open={isExpanded} onOpenChange={() => handleOrderExpand(order.id)}>
-                      <CollapsibleContent>
-                        <CardContent className="pt-0">
-                          {isLoadingBOM ? (
-                            <div className="flex items-center justify-center py-8">
-                              <Loader2 className="w-6 h-6 animate-spin mr-2" />
-                              <span>Loading BOM...</span>
-                            </div>
-                          ) : orderBOM.length > 0 ? (
-                            <div className="space-y-4">
-                              {/* BOM Summary */}
-                              {stats && (
-                                <div className="grid grid-cols-3 gap-4 p-4 bg-gray-50 rounded-lg">
-                                  <div className="text-center">
-                                    <div className="text-2xl font-bold text-blue-600">{stats.totalParts}</div>
-                                    <div className="text-sm text-gray-600">Parts</div>
-                                  </div>
-                                  <div className="text-center">
-                                    <div className="text-2xl font-bold text-green-600">{stats.totalAssemblies}</div>
-                                    <div className="text-sm text-gray-600">Assemblies</div>
-                                  </div>
-                                  <div className="text-center">
-                                    <div className="text-2xl font-bold text-purple-600">{stats.totalParts + stats.totalAssemblies}</div>
-                                    <div className="text-sm text-gray-600">Total Items</div>
-                                  </div>
-                                </div>
-                              )}
-
-                              {/* BOM Items */}
-                              <div className="border rounded-lg overflow-hidden">
-                                <div className="bg-gray-50 px-4 py-2 border-b">
-                                  <h4 className="font-medium">CleanStation Production BOM</h4>
-                                </div>
-                                <div className="p-4 max-h-96 overflow-y-auto">
-                                  {renderBOMItems(orderBOM)}
-                                </div>
-                              </div>
-                            </div>
-                          ) : (
-                            <Alert>
-                              <AlertCircle className="h-4 w-4" />
-                              <AlertDescription>
-                                No production BOM data available. Please generate sink configuration BOM first.
-                              </AlertDescription>
-                            </Alert>
-                          )}
-                        </CardContent>
-                      </CollapsibleContent>
-                    </Collapsible>
                   </Card>
                 )
               })}
