@@ -289,53 +289,69 @@ export function SimpleBOMApproval({ onOrderUpdate }: SimpleBOMApprovalProps) {
     }
   }
 
-  const renderBOMItems = (items: BOMItem[], level = 0) => {
-    return items.map((item, index) => {
-      // Check if this is a sink body part (721.709 series or similar)
-      const isSinkBodyPart = item.partIdOrAssemblyId?.includes('721.709') || 
-                              item.name?.toLowerCase().includes('sink body') ||
-                              item.name?.toLowerCase().includes('frame')
-      
-      // Check for basin parts (722 series)
-      const isBasinPart = item.partIdOrAssemblyId?.includes('722.') ||
-                          item.name?.toLowerCase().includes('basin') ||
-                          item.name?.toLowerCase().includes('e-sink') ||
-                          item.name?.toLowerCase().includes('e-drain')
-      
-      return (
-        <div key={`${item.id}-${index}`} className={`ml-${level * 4}`}>
-          <div className="flex items-center justify-between py-2 border-b border-gray-100 last:border-b-0">
-            <div className="flex items-center gap-2">
-              <div className={`w-2 h-2 rounded-full ${item.itemType === "ASSEMBLY" ? "bg-blue-500" : "bg-green-500"}`} />
-              <span className="font-mono text-sm">{item.partIdOrAssemblyId || item.id}</span>
-              <span className="text-sm text-gray-600">{item.name}</span>
-              <Badge variant="outline" className="text-xs">
-                {item.itemType === "ASSEMBLY" ? "Assembly" : "Part"}
-              </Badge>
-              {item.category && (
-                <Badge variant="secondary" className="text-xs">
-                  {item.category}
-                </Badge>
-              )}
-              {isSinkBodyPart && (
-                <Badge className="text-xs bg-orange-100 text-orange-700 border-orange-200">
-                  Sink Body Mfg
-                </Badge>
-              )}
-              {isBasinPart && (
-                <Badge className="text-xs bg-purple-100 text-purple-700 border-purple-200">
-                  Basin System
-                </Badge>
-              )}
-            </div>
-            <div className="text-sm font-medium">
-              Qty: {item.quantity}
-            </div>
-          </div>
-          {item.children && item.children.length > 0 && renderBOMItems(item.children, level + 1)}
-        </div>
-      )
-    })
+  const renderBOMItems = (items: BOMItem[], level = 0): JSX.Element[] => {
+    const rows: JSX.Element[] = []
+    
+    const processItems = (items: BOMItem[], currentLevel: number, parentPath: string = "") => {
+      items.forEach((item, index) => {
+        const isAssembly = item.itemType === "ASSEMBLY"
+        const isLastChild = index === items.length - 1
+        const indentStyle = { paddingLeft: `${currentLevel * 28 + 12}px` }
+        
+        // Create tree line visualization
+        let treeSymbol = ""
+        if (currentLevel > 0) {
+          treeSymbol = isLastChild ? "└── " : "├── "
+        }
+        
+        // Determine row styling based on level and type
+        let rowClassName = ""
+        if (currentLevel === 0) {
+          rowClassName = "bg-blue-50 font-semibold"
+        } else if (isAssembly) {
+          rowClassName = "bg-gray-50"
+        }
+        
+        rows.push(
+          <TableRow key={`${item.id}-${index}-${currentLevel}`} className={rowClassName}>
+            <TableCell style={indentStyle}>
+              <div className="flex items-center gap-2">
+                {currentLevel > 0 && (
+                  <span className="text-gray-400 font-mono text-sm">{treeSymbol}</span>
+                )}
+                <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                  isAssembly ? "bg-blue-500" : "bg-green-500"
+                }`} />
+                <span className={currentLevel === 0 ? "font-semibold" : ""}>{item.name}</span>
+              </div>
+            </TableCell>
+            <TableCell className="text-center">
+              <code className="text-sm bg-gray-100 px-2 py-1 rounded">
+                {item.partIdOrAssemblyId || item.id}
+              </code>
+            </TableCell>
+            <TableCell className="text-center">
+              <span className={`text-sm ${isAssembly ? "text-blue-600" : "text-green-600"}`}>
+                {isAssembly ? "Assembly" : "Part"}
+              </span>
+            </TableCell>
+            <TableCell className="text-center">
+              <span className="font-semibold text-lg">{item.quantity}</span>
+            </TableCell>
+            <TableCell className="text-center text-sm text-gray-600">
+              {item.category || "-"}
+            </TableCell>
+          </TableRow>
+        )
+        
+        if (item.children && item.children.length > 0) {
+          processItems(item.children, currentLevel + 1, parentPath + "/" + item.name)
+        }
+      })
+    }
+    
+    processItems(items, level)
+    return rows
   }
 
   const calculateOrderStats = (items: BOMItem[]): { totalParts: number; totalAssemblies: number } => {
@@ -393,11 +409,19 @@ export function SimpleBOMApproval({ onOrderUpdate }: SimpleBOMApprovalProps) {
 
     return (
       <Dialog open={bomDialogOpen === orderId} onOpenChange={(open) => !open && setBomDialogOpen(null)}>
-        <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden flex flex-col">
-          <DialogHeader>
-            <DialogTitle>CleanStation Production BOM</DialogTitle>
-            <DialogDescription>
-              {order ? `${order.poNumber} - ${order.customerName}` : "Order BOM Details"}
+        <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogHeader className="pb-4 border-b">
+            <DialogTitle className="text-2xl">CleanStation Production BOM</DialogTitle>
+            <DialogDescription className="flex items-center gap-4 mt-2">
+              <span className="font-semibold">{order?.poNumber || "N/A"}</span>
+              <span className="text-gray-400">•</span>
+              <span>{order?.customerName || "Customer"}</span>
+              {order?.wantDate && (
+                <>
+                  <span className="text-gray-400">•</span>
+                  <span>Due: {format(new Date(order.wantDate), "MMM dd, yyyy")}</span>
+                </>
+              )}
             </DialogDescription>
           </DialogHeader>
           
@@ -411,29 +435,41 @@ export function SimpleBOMApproval({ onOrderUpdate }: SimpleBOMApprovalProps) {
               <div className="space-y-4">
                 {/* BOM Summary */}
                 {stats && (
-                  <div className="grid grid-cols-3 gap-4 p-4 bg-gray-50 rounded-lg">
-                    <div className="text-center">
-                      <div className="text-2xl font-bold text-blue-600">{stats.totalParts}</div>
-                      <div className="text-sm text-gray-600">Parts</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-2xl font-bold text-green-600">{stats.totalAssemblies}</div>
-                      <div className="text-sm text-gray-600">Assemblies</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-2xl font-bold text-purple-600">{stats.totalParts + stats.totalAssemblies}</div>
-                      <div className="text-sm text-gray-600">Total Items</div>
+                  <div className="flex items-center justify-between p-4 bg-blue-50 rounded-lg mb-4">
+                    <h3 className="font-semibold text-gray-700">BOM Summary</h3>
+                    <div className="flex items-center gap-6">
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full bg-blue-500" />
+                        <span className="text-sm font-medium">{stats.totalAssemblies} Assemblies</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full bg-green-500" />
+                        <span className="text-sm font-medium">{stats.totalParts} Parts</span>
+                      </div>
+                      <div className="pl-4 border-l-2 border-gray-300">
+                        <span className="text-lg font-bold text-gray-800">{stats.totalParts + stats.totalAssemblies} Total</span>
+                      </div>
                     </div>
                   </div>
                 )}
 
-                {/* BOM Items */}
+                {/* BOM Items Table */}
                 <div className="border rounded-lg overflow-hidden">
-                  <div className="bg-gray-50 px-4 py-2 border-b">
-                    <h4 className="font-medium">CleanStation Production BOM</h4>
-                  </div>
-                  <div className="p-4">
-                    {renderBOMItems(orderBOM)}
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader className="sticky top-0 z-10">
+                        <TableRow className="bg-gray-100 border-b-2">
+                          <TableHead className="font-semibold text-gray-700 w-2/5">Component Name</TableHead>
+                          <TableHead className="text-center font-semibold text-gray-700 w-1/5">Part Number</TableHead>
+                          <TableHead className="text-center font-semibold text-gray-700 w-1/5">Type</TableHead>
+                          <TableHead className="text-center font-semibold text-gray-700 w-1/10">Qty</TableHead>
+                          <TableHead className="text-center font-semibold text-gray-700 w-1/5">Category</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {renderBOMItems(orderBOM)}
+                      </TableBody>
+                    </Table>
                   </div>
                 </div>
               </div>
