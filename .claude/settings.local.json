@@ -95,7 +95,12 @@
       "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/torvan-db?schema=public\" npx prisma db push --accept-data-loss)",
       "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/torvan-db?schema=public\" npx prisma db pull --print)",
       "Bash(diff:*)",
-      "Bash(npx shadcn@latest add:*)"
+      "Bash(npx shadcn@latest add:*)",
+      "Bash(npm test:*)",
+      "mcp__filesystem__read_multiple_files",
+      "WebFetch(domain:medium.com)",
+      "Bash(npm view:*)",
+      "Bash(npm outdated)"
     ],
     "deny": []
   },

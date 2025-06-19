@@ -41,7 +41,7 @@ function validateStatusTransition(
   // Define allowed transitions based on current status and role
   const transitions: Record<string, Record<string, string[]>> = {
     'ORDER_CREATED': {
-      'PROCUREMENT_SPECIALIST': ['PARTS_SENT_WAITING_ARRIVAL'],
+      'PROCUREMENT_SPECIALIST': ['READY_FOR_PRE_QC'], // Simplified: Direct approval to Pre-QC
       'PRODUCTION_COORDINATOR': ['PARTS_SENT_WAITING_ARRIVAL', 'READY_FOR_PRE_QC']
     },
     'PARTS_SENT_WAITING_ARRIVAL': {

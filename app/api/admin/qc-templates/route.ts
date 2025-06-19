@@ -40,7 +40,15 @@ export async function GET(request: NextRequest) {
 
     const templates = await prisma.qcFormTemplate.findMany({
       where,
-      include: {
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        version: true,
+        isActive: true,
+        appliesToProductFamily: true,
+        createdAt: true,
+        updatedAt: true,
         items: {
           orderBy: { order: 'asc' },
           select: {
@@ -70,13 +78,13 @@ export async function GET(request: NextRequest) {
       ]
     });
 
-    // Group templates by formName and product family to show version history
+    // Group templates by name and product family to show version history
     const templateGroups = templates.reduce((groups, template) => {
-      const key = `${template.formName}|${template.appliesToProductFamily || 'generic'}`;
+      const key = `${template.name}|${template.appliesToProductFamily || 'generic'}`;
       if (!groups[key]) {
         groups[key] = {
-          formName: template.formName,
-          formType: template.formType,
+          name: template.name,
+          description: template.description,
           productFamily: template.appliesToProductFamily,
           activeVersion: null,
           versions: []
@@ -90,6 +98,9 @@ export async function GET(request: NextRequest) {
       
       return groups;
     }, {} as Record<string, {
+      name: string;
+      description: string | null;
+      productFamily: string | null;
       activeVersion: typeof templates[0] | null;
       versions: typeof templates;
     }>);
@@ -142,8 +153,7 @@ export async function POST(request: NextRequest) {
 
     const template = await prisma.qcFormTemplate.create({
       data: {
-        formName: validatedData.formName,
-        formType: validatedData.formType,
+        name: validatedData.formName,
         version: validatedData.version,
         description: validatedData.description,
         appliesToProductFamily: validatedData.appliesToProductFamily,

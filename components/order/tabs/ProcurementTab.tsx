@@ -6,10 +6,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Loader2, AlertCircle, Package, CheckCircle } from "lucide-react"
-import { ProcurementPartsSelector } from "@/components/procurement/ProcurementPartsSelector"
+import { Loader2, AlertCircle, Package, CheckCircle, FileText } from "lucide-react"
+import { BOMViewer } from "@/components/order/BOMViewer"
 import { nextJsApiClient } from "@/lib/api"
 import { format } from "date-fns"
+import { useToast } from "@/hooks/use-toast"
 
 interface ProcurementTabProps {
   orderId: string
@@ -18,13 +19,6 @@ interface ProcurementTabProps {
   bomLoading: boolean
   bomError: string | null
   onStatusChange: () => void
-}
-
-interface OutsourcedPartSummary {
-  total: number
-  sent: number
-  received: number
-  pending: number
 }
 
 export function ProcurementTab({
@@ -36,65 +30,35 @@ export function ProcurementTab({
   onStatusChange,
 }: ProcurementTabProps) {
   const { data: session } = useSession()
-  const [outsourcedParts, setOutsourcedParts] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
-  const [summary, setSummary] = useState<OutsourcedPartSummary>({
-    total: 0,
-    sent: 0,
-    received: 0,
-    pending: 0,
-  })
+  const { toast } = useToast()
+  const [approving, setApproving] = useState(false)
 
   // Check if user has permission to view this tab
   const hasPermission = session?.user?.role === "ADMIN" || session?.user?.role === "PROCUREMENT_SPECIALIST"
-  const isRelevantStatus = ["ORDER_CREATED", "PARTS_SENT_WAITING_ARRIVAL"].includes(orderStatus)
+  const canApprove = orderStatus === "ORDER_CREATED"
 
-  useEffect(() => {
-    if (hasPermission && isRelevantStatus) {
-      fetchOutsourcedParts()
-    }
-  }, [orderId, hasPermission, isRelevantStatus])
-
-  const fetchOutsourcedParts = async () => {
+  const handleApproveBOM = async () => {
+    setApproving(true)
     try {
-      const response = await nextJsApiClient.get(`/orders/${orderId}/outsourced-parts`)
-      if (response.data.success) {
-        const parts = response.data.data
-        setOutsourcedParts(parts)
-        
-        // Calculate summary
-        const summary = parts.reduce((acc: OutsourcedPartSummary, part: any) => {
-          acc.total++
-          if (part.status === "SENT" || part.status === "IN_PROGRESS") {
-            acc.sent++
-          } else if (part.status === "RECEIVED") {
-            acc.received++
-          } else if (part.status === "PENDING") {
-            acc.pending++
-          }
-          return acc
-        }, { total: 0, sent: 0, received: 0, pending: 0 })
-        
-        setSummary(summary)
-      }
-    } catch (error) {
-      console.error("Error fetching outsourced parts:", error)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleConfirmAllPartsReceived = async () => {
-    try {
-      // Update order status to READY_FOR_PRE_QC
       await nextJsApiClient.put(`/orders/${orderId}/status`, {
         newStatus: "READY_FOR_PRE_QC",
-        notes: "All parts received from sink body manufacturer - ready for Pre-QC",
+        notes: "BOM approved by procurement specialist",
+      })
+      
+      toast({
+        title: "BOM Approved",
+        description: "Order has been approved and is ready for Pre-QC",
       })
       
       onStatusChange()
-    } catch (error) {
-      console.error("Error updating order status:", error)
+    } catch (error: any) {
+      toast({
+        title: "Approval Failed", 
+        description: error.response?.data?.message || "Failed to approve BOM",
+        variant: "destructive",
+      })
+    } finally {
+      setApproving(false)
     }
   }
 
@@ -109,68 +73,64 @@ export function ProcurementTab({
     )
   }
 
-  if (!isRelevantStatus) {
-    return (
-      <Alert>
-        <AlertCircle className="h-4 w-4" />
-        <AlertDescription>
-          Procurement actions are not available for this order status.
-        </AlertDescription>
-      </Alert>
-    )
-  }
-
   return (
     <div className="space-y-6">
-      {/* Status Summary */}
-      {outsourcedParts.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Outsourced Parts Summary</CardTitle>
-            <CardDescription>
-              Overview of parts sent to external manufacturers
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="space-y-1">
-                <p className="text-sm text-muted-foreground">Total Parts</p>
-                <p className="text-2xl font-bold">{summary.total}</p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-sm text-muted-foreground">Sent</p>
-                <p className="text-2xl font-bold text-blue-600">{summary.sent}</p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-sm text-muted-foreground">Received</p>
-                <p className="text-2xl font-bold text-green-600">{summary.received}</p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-sm text-muted-foreground">Pending</p>
-                <p className="text-2xl font-bold text-yellow-600">{summary.pending}</p>
-              </div>
+      {/* Order Status Card */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <FileText className="w-5 h-5" />
+                BOM Review & Approval
+              </CardTitle>
+              <CardDescription>
+                Review the Bill of Materials and approve for production
+              </CardDescription>
             </div>
-            
-            {/* Show confirm button when all parts are received */}
-            {orderStatus === "PARTS_SENT_WAITING_ARRIVAL" && summary.sent === 0 && summary.pending === 0 && summary.total > 0 && (
-              <div className="mt-4 pt-4 border-t">
-                <Alert className="mb-4">
-                  <CheckCircle className="h-4 w-4" />
-                  <AlertDescription>
-                    All outsourced parts have been received. You can now proceed to Pre-QC.
-                  </AlertDescription>
-                </Alert>
-                <Button onClick={handleConfirmAllPartsReceived}>
-                  <CheckCircle className="w-4 h-4 mr-2" />
-                  Confirm All Parts Received & Proceed to Pre-QC
-                </Button>
+            <Badge className={
+              orderStatus === "ORDER_CREATED" ? "bg-blue-100 text-blue-700" :
+              orderStatus === "READY_FOR_PRE_QC" ? "bg-green-100 text-green-700" :
+              "bg-gray-100 text-gray-700"
+            }>
+              {orderStatus === "ORDER_CREATED" ? "Awaiting Approval" :
+               orderStatus === "READY_FOR_PRE_QC" ? "Approved" : 
+               orderStatus.replace("_", " ")}
+            </Badge>
+          </div>
+        </CardHeader>
+        {canApprove && (
+          <CardContent>
+            <div className="flex items-center justify-between p-4 bg-blue-50 rounded-lg">
+              <div>
+                <h4 className="font-medium">Ready for Approval</h4>
+                <p className="text-sm text-gray-600">
+                  Review the BOM below and approve to proceed to Pre-QC
+                </p>
               </div>
-            )}
+              <Button
+                onClick={handleApproveBOM}
+                disabled={approving}
+                className="bg-green-600 hover:bg-green-700"
+              >
+                {approving ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Approving...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle className="w-4 h-4 mr-2" />
+                    Approve BOM
+                  </>
+                )}
+              </Button>
+            </div>
           </CardContent>
-        </Card>
-      )}
+        )}
+      </Card>
 
-      {/* Parts Selector */}
+      {/* BOM Display */}
       {bomLoading ? (
         <Card>
           <CardContent className="flex items-center justify-center py-8">
@@ -184,15 +144,17 @@ export function ProcurementTab({
           <AlertDescription>{bomError}</AlertDescription>
         </Alert>
       ) : bomData ? (
-        <ProcurementPartsSelector
-          orderId={orderId}
-          bomData={bomData}
-          orderStatus={orderStatus}
-          onStatusChange={() => {
-            fetchOutsourcedParts()
-            onStatusChange()
-          }}
-        />
+        <Card>
+          <CardHeader>
+            <CardTitle>Bill of Materials</CardTitle>
+            <CardDescription>
+              Complete list of parts and assemblies for this order
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <BOMViewer bomData={bomData} />
+          </CardContent>
+        </Card>
       ) : (
         <Alert>
           <AlertCircle className="h-4 w-4" />
@@ -202,52 +164,19 @@ export function ProcurementTab({
         </Alert>
       )}
 
-      {/* Outsourced Parts List */}
-      {outsourcedParts.length > 0 && (
+      {/* Approval History */}
+      {!canApprove && (
         <Card>
           <CardHeader>
-            <CardTitle>Outsourced Parts Details</CardTitle>
-            <CardDescription>
-              Detailed list of all parts sent to external manufacturers
-            </CardDescription>
+            <CardTitle>Approval Status</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-3">
-              {outsourcedParts.map((part) => (
-                <div key={part.id} className="flex items-center justify-between p-3 border rounded-lg">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium">{part.partNumber}</span>
-                      <Badge variant="outline">{part.partName}</Badge>
-                    </div>
-                    <div className="text-sm text-muted-foreground">
-                      Qty: {part.quantity} | Supplier: {part.supplier || "Not specified"}
-                    </div>
-                    {part.notes && (
-                      <p className="text-sm text-muted-foreground">{part.notes}</p>
-                    )}
-                  </div>
-                  <div className="text-right space-y-1">
-                    <Badge className={
-                      part.status === "PENDING" ? "bg-yellow-100 text-yellow-700" :
-                      part.status === "SENT" ? "bg-blue-100 text-blue-700" :
-                      part.status === "IN_PROGRESS" ? "bg-purple-100 text-purple-700" :
-                      part.status === "RECEIVED" ? "bg-green-100 text-green-700" :
-                      "bg-red-100 text-red-700"
-                    }>
-                      {part.status.replace("_", " ")}
-                    </Badge>
-                    <p className="text-xs text-muted-foreground">
-                      Marked: {(() => {
-                        if (!part.markedAt) return "Unknown"
-                        const date = new Date(part.markedAt)
-                        return isNaN(date.getTime()) ? "Unknown" : format(date, "MMM dd, yyyy")
-                      })()}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
+            <Alert>
+              <CheckCircle className="h-4 w-4" />
+              <AlertDescription>
+                This order has been approved and is proceeding through production.
+              </AlertDescription>
+            </Alert>
           </CardContent>
         </Card>
       )}

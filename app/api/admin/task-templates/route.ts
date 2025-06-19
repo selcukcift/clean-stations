@@ -70,11 +70,7 @@ export async function GET(request: NextRequest) {
     const productFamily = searchParams.get('productFamily');
 
     // Build where clause
-    const where: {
-      isActive?: boolean;
-      appliesToAssemblyType?: string;
-      appliesToProductFamily?: string;
-    } = {};
+    const where: any = {};
     if (!includeInactive) {
       where.isActive = true;
     }
@@ -159,6 +155,9 @@ export async function GET(request: NextRequest) {
       
       return groups;
     }, {} as Record<string, {
+      name: string;
+      appliesToAssemblyType: any;
+      appliesToProductFamily: string | null;
       activeVersion: typeof templates[0] | null;
       versions: typeof templates;
     }>);

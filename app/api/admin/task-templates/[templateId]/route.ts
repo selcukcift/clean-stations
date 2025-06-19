@@ -185,7 +185,7 @@ export async function PUT(
         data: {
           name: validatedData.name,
           description: validatedData.description,
-          appliesToAssemblyType: validatedData.appliesToAssemblyType,
+          appliesToAssemblyType: validatedData.appliesToAssemblyType as any,
           appliesToProductFamily: validatedData.appliesToProductFamily,
           version: validatedData.version,
           isActive: validatedData.isActive

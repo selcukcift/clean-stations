@@ -489,6 +489,7 @@ export default function OrderDetailsPage() {
   const [bomData, setBomData] = useState<any>(null)
   const [previewDocument, setPreviewDocument] = useState<any>(null)
   const [previewModalOpen, setPreviewModalOpen] = useState(false)
+  const [pdfExporting, setPdfExporting] = useState(false)
 
   useEffect(() => {
     fetchOrderDetails()
@@ -924,6 +925,51 @@ export default function OrderDetailsPage() {
     window.open(downloadUrl, '_blank')
   }
 
+  // Handle professional PDF export
+  const handleProfessionalPDFExport = async () => {
+    setPdfExporting(true)
+    try {
+      const response = await nextJsApiClient.get(
+        `/orders/${params.orderId}/export-pdf-simple`,
+        { 
+          responseType: 'blob',
+          timeout: 60000 // 60 second timeout for PDF generation
+        }
+      )
+
+      // Create download link
+      const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }))
+      const link = document.createElement('a')
+      link.href = url
+      
+      // Generate filename
+      const filename = `order-${order.poNumber}-summary.pdf`
+      link.download = filename
+      
+      // Trigger download
+      document.body.appendChild(link)
+      link.click()
+      
+      // Cleanup
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
+
+      toast({
+        title: "PDF Generated",
+        description: "Professional order summary PDF has been downloaded.",
+      })
+    } catch (error: any) {
+      console.error('PDF export error:', error)
+      toast({
+        title: "Export Failed",
+        description: error.response?.data?.message || "Failed to generate PDF. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setPdfExporting(false)
+    }
+  }
+
   return (
     <div className="space-y-4">
       {/* Compact Header */}
@@ -946,6 +992,19 @@ export default function OrderDetailsPage() {
           <Badge className={statusColors[order.orderStatus] || "bg-gray-100 text-gray-700"}>
             {statusDisplayNames[order.orderStatus] || order.orderStatus}
           </Badge>
+          <Button 
+            onClick={handleProfessionalPDFExport}
+            variant="outline"
+            size="sm"
+            disabled={pdfExporting}
+          >
+            {pdfExporting ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <FileText className="w-4 h-4 mr-2" />
+            )}
+            {pdfExporting ? 'Generating...' : 'Export PDF'}
+          </Button>
           <Button 
             onClick={() => router.push(`/orders/${params.orderId}/print`)}
             variant="outline"

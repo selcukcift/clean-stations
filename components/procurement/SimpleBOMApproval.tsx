@@ -8,14 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useToast } from "@/hooks/use-toast"
 import { nextJsApiClient } from "@/lib/api"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   Dialog,
   DialogContent,
@@ -32,6 +25,13 @@ import {
   AlertCircle,
   Eye,
   Loader2,
+  ChevronRight,
+  ChevronDown,
+  FolderOpen,
+  Folder,
+  FileIcon,
+  Layers,
+  FileText,
 } from "lucide-react"
 import { format } from "date-fns"
 
@@ -59,12 +59,21 @@ interface ServiceOrder {
 interface BOMItem {
   id: string
   name: string
+  assemblyId?: string
+  partNumber?: string
   partIdOrAssemblyId?: string
   quantity: number
-  itemType: "PART" | "ASSEMBLY"
+  itemType?: "PART" | "ASSEMBLY"
+  type?: string
   category?: string
   isCustom?: boolean
   children?: BOMItem[]
+  subItems?: BOMItem[]
+  components?: BOMItem[]
+  description?: string
+  hasChildren?: boolean
+  isAssembly?: boolean
+  isPart?: boolean
 }
 
 interface SimpleBOMApprovalProps {
@@ -84,6 +93,8 @@ export function SimpleBOMApproval({ onOrderUpdate }: SimpleBOMApprovalProps) {
   const [loadingBom, setLoadingBom] = useState<Set<string>>(new Set())
   const [activeTab, setActiveTab] = useState<"pending" | "approved" | "all">("pending")
   const [bomDialogOpen, setBomDialogOpen] = useState<string | null>(null)
+  const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set())
+  const [pdfExporting, setPdfExporting] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     fetchAllOrders()
@@ -134,13 +145,66 @@ export function SimpleBOMApproval({ onOrderUpdate }: SimpleBOMApprovalProps) {
     }
   }
 
+  // Helper function to reconstruct hierarchy from flat BOM items
+  const reconstructBomHierarchy = (flatItems: any[]): BOMItem[] => {
+    if (!flatItems || flatItems.length === 0) return []
+    
+    // Create a map for quick lookup
+    const itemMap = new Map<string, BOMItem>()
+    const rootItems: BOMItem[] = []
+    
+    // First pass: Create all items
+    flatItems.forEach(item => {
+      const bomItem: BOMItem = {
+        id: item.id,
+        name: item.name,
+        assemblyId: item.partIdOrAssemblyId,
+        partNumber: item.partIdOrAssemblyId,
+        quantity: item.quantity,
+        itemType: item.itemType,
+        type: item.itemType,
+        category: item.category,
+        isCustom: item.isCustom,
+        children: [],
+        components: [],
+        subItems: []
+      }
+      itemMap.set(item.id, bomItem)
+    })
+    
+    // Second pass: Build hierarchy
+    flatItems.forEach(item => {
+      const bomItem = itemMap.get(item.id)
+      if (!bomItem) return
+      
+      if (item.parentId) {
+        // This is a child item
+        const parent = itemMap.get(item.parentId)
+        if (parent) {
+          parent.children = parent.children || []
+          parent.components = parent.components || []
+          parent.subItems = parent.subItems || []
+          
+          parent.children.push(bomItem)
+          parent.components.push(bomItem)
+          parent.subItems.push(bomItem)
+        }
+      } else {
+        // This is a root item
+        rootItems.push(bomItem)
+      }
+    })
+    
+    return rootItems
+  }
+
   const fetchBOMData = async (orderId: string, forceRegenerate: boolean = false) => {
     // Skip if already loaded and not forcing regenerate
     if (bomData[orderId] && !forceRegenerate) return
 
     setLoadingBom(prev => new Set(prev).add(orderId))
     try {
-      let bom: BOMItem[] = []
+      let flatBomItems: any[] = []
       
       if (forceRegenerate) {
         // First generate/regenerate the BOM
@@ -149,32 +213,45 @@ export function SimpleBOMApproval({ onOrderUpdate }: SimpleBOMApprovalProps) {
         // Then fetch the order data to get the BOM
         const orderResponse = await nextJsApiClient.get(`/orders/${orderId}`)
         if (orderResponse.data.success && orderResponse.data.data.generatedBoms?.length > 0) {
-          bom = orderResponse.data.data.generatedBoms[0].bomItems || []
+          flatBomItems = orderResponse.data.data.generatedBoms[0].bomItems || []
         }
       } else {
         // Just fetch existing BOM data from the order
         const orderResponse = await nextJsApiClient.get(`/orders/${orderId}`)
         if (orderResponse.data.success && orderResponse.data.data.generatedBoms?.length > 0) {
-          bom = orderResponse.data.data.generatedBoms[0].bomItems || []
+          flatBomItems = orderResponse.data.data.generatedBoms[0].bomItems || []
         } else {
           // No existing BOM, generate it
           await nextJsApiClient.post(`/orders/${orderId}/generate-bom`)
           const newOrderResponse = await nextJsApiClient.get(`/orders/${orderId}`)
           if (newOrderResponse.data.success && newOrderResponse.data.data.generatedBoms?.length > 0) {
-            bom = newOrderResponse.data.data.generatedBoms[0].bomItems || []
+            flatBomItems = newOrderResponse.data.data.generatedBoms[0].bomItems || []
           }
         }
       }
       
-      console.log("BOM Data:", { orderId, bomLength: bom.length, bom })
+      // Reconstruct hierarchy from flat database items
+      const hierarchicalBom = reconstructBomHierarchy(flatBomItems)
       
-      setBomData(prev => ({ ...prev, [orderId]: bom }))
+      console.log("BOM Data:", { 
+        orderId, 
+        flatItemsLength: flatBomItems.length, 
+        hierarchicalItemsLength: hierarchicalBom.length,
+        hierarchicalBom 
+      })
+      
+      setBomData(prev => ({ ...prev, [orderId]: hierarchicalBom }))
+      
+      // Auto-expand key assemblies when BOM loads
+      if (hierarchicalBom.length > 0) {
+        autoExpandBOM(hierarchicalBom)
+      }
       
       // Show success toast
-      if (bom.length > 0) {
+      if (hierarchicalBom.length > 0) {
         toast({
           title: "BOM Loaded",
-          description: `CleanStation production BOM loaded with ${bom.length} items`,
+          description: `CleanStation production BOM loaded with ${hierarchicalBom.length} top-level items`,
         })
       } else {
         toast({
@@ -289,90 +366,278 @@ export function SimpleBOMApproval({ onOrderUpdate }: SimpleBOMApprovalProps) {
     }
   }
 
-  const renderBOMItems = (items: BOMItem[], level = 0): JSX.Element[] => {
-    const rows: JSX.Element[] = []
-    
-    const processItems = (items: BOMItem[], currentLevel: number, parentPath: string = "") => {
-      items.forEach((item, index) => {
-        const isAssembly = item.itemType === "ASSEMBLY"
-        const isLastChild = index === items.length - 1
-        const indentStyle = { paddingLeft: `${currentLevel * 28 + 12}px` }
-        
-        // Create tree line visualization
-        let treeSymbol = ""
-        if (currentLevel > 0) {
-          treeSymbol = isLastChild ? "└── " : "├── "
-        }
-        
-        // Determine row styling based on level and type
-        let rowClassName = ""
-        if (currentLevel === 0) {
-          rowClassName = "bg-blue-50 font-semibold"
-        } else if (isAssembly) {
-          rowClassName = "bg-gray-50"
-        }
-        
-        rows.push(
-          <TableRow key={`${item.id}-${index}-${currentLevel}`} className={rowClassName}>
-            <TableCell style={indentStyle}>
-              <div className="flex items-center gap-2">
-                {currentLevel > 0 && (
-                  <span className="text-gray-400 font-mono text-sm">{treeSymbol}</span>
-                )}
-                <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                  isAssembly ? "bg-blue-500" : "bg-green-500"
-                }`} />
-                <span className={currentLevel === 0 ? "font-semibold" : ""}>{item.name}</span>
-              </div>
-            </TableCell>
-            <TableCell className="text-center">
-              <code className="text-sm bg-gray-100 px-2 py-1 rounded">
-                {item.partIdOrAssemblyId || item.id}
-              </code>
-            </TableCell>
-            <TableCell className="text-center">
-              <span className={`text-sm ${isAssembly ? "text-blue-600" : "text-green-600"}`}>
-                {isAssembly ? "Assembly" : "Part"}
-              </span>
-            </TableCell>
-            <TableCell className="text-center">
-              <span className="font-semibold text-lg">{item.quantity}</span>
-            </TableCell>
-            <TableCell className="text-center text-sm text-gray-600">
-              {item.category || "-"}
-            </TableCell>
-          </TableRow>
-        )
-        
-        if (item.children && item.children.length > 0) {
-          processItems(item.children, currentLevel + 1, parentPath + "/" + item.name)
-        }
-      })
+  // Toggle expand/collapse for BOM items
+  const toggleItem = (itemId: string) => {
+    const newExpanded = new Set(expandedItems)
+    if (newExpanded.has(itemId)) {
+      newExpanded.delete(itemId)
+    } else {
+      newExpanded.add(itemId)
     }
-    
-    processItems(items, level)
-    return rows
+    setExpandedItems(newExpanded)
   }
 
-  const calculateOrderStats = (items: BOMItem[]): { totalParts: number; totalAssemblies: number } => {
-    let totalParts = 0
-    let totalAssemblies = 0
-
-    const countItems = (items: BOMItem[]) => {
+  const expandAll = (items: BOMItem[]) => {
+    const allItemIds = new Set<string>()
+    const collectIds = (items: BOMItem[]) => {
+      if (!items) return
       items.forEach(item => {
-        if (item.itemType === "PART") {
-          totalParts += item.quantity
-        } else {
-          totalAssemblies += item.quantity
-        }
-        if (item.children) {
-          countItems(item.children)
+        const itemId = item.id || item.assemblyId || item.partNumber || item.name
+        const childItems = item.children || item.subItems || item.components || []
+        if (childItems.length > 0) {
+          allItemIds.add(itemId)
+          collectIds(childItems)
         }
       })
     }
+    collectIds(items)
+    setExpandedItems(allItemIds)
+  }
 
-    countItems(items)
-    return { totalParts, totalAssemblies }
+  const collapseAll = () => {
+    setExpandedItems(new Set())
+  }
+
+  // Handle PDF export for specific order
+  const handlePDFExport = async (orderId: string, poNumber: string) => {
+    setPdfExporting(prev => new Set(prev).add(orderId))
+    try {
+      const response = await nextJsApiClient.get(
+        `/orders/${orderId}/export-pdf-simple`,
+        { 
+          responseType: 'blob',
+          timeout: 60000 // 60 second timeout for PDF generation
+        }
+      )
+
+      // Create download link
+      const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }))
+      const link = document.createElement('a')
+      link.href = url
+      
+      // Generate filename
+      const filename = `order-${poNumber}-summary.pdf`
+      link.download = filename
+      
+      // Trigger download
+      document.body.appendChild(link)
+      link.click()
+      
+      // Cleanup
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
+
+      toast({
+        title: "PDF Generated",
+        description: `Professional order summary PDF for ${poNumber} has been downloaded.`,
+      })
+    } catch (error: any) {
+      console.error('PDF export error:', error)
+      toast({
+        title: "Export Failed",
+        description: error.response?.data?.message || "Failed to generate PDF. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setPdfExporting(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(orderId)
+        return newSet
+      })
+    }
+  }
+
+  // Auto-expand key assemblies when BOM loads
+  const autoExpandBOM = (items: BOMItem[]) => {
+    const itemsToExpand = new Set<string>()
+    
+    const findExpandableItems = (items: BOMItem[], depth: number = 0) => {
+      items.forEach(item => {
+        const itemId = item.id || item.assemblyId || item.partNumber || item.name
+        const childItems = item.children || item.subItems || item.components || []
+        
+        // Auto-expand top-level assemblies and key assembly types
+        if (itemId && (
+          depth === 0 || // Top level
+          itemId.includes('T2-BODY-') || // Sink bodies
+          itemId.includes('T2-BSN-') || // Basin kits
+          itemId.includes('T2-VALVE-') || // Valve assemblies
+          itemId.includes('T2-DRAIN-') || // Drain assemblies
+          itemId.includes('-KIT') || // Kit assemblies
+          (childItems.length > 0 && depth < 2) // Any assembly with children (up to 2 levels deep)
+        )) {
+          itemsToExpand.add(itemId)
+        }
+        
+        // Recursively check children
+        if (childItems.length > 0) {
+          findExpandableItems(childItems, depth + 1)
+        }
+      })
+    }
+    
+    findExpandableItems(items)
+    setExpandedItems(itemsToExpand)
+  }
+
+  // Render BOM item with BOMViewer-style hierarchy (following single source of truth)
+  const renderBOMItem = (item: BOMItem, level: number = 0, index: number = 0): JSX.Element => {
+    const childItems = item.children || item.subItems || item.components || []
+    const hasChildren = childItems.length > 0
+    const itemId = item.id || item.assemblyId || item.partNumber || `${item.name}-${index}`
+    const isExpanded = expandedItems.has(itemId)
+    
+    // Get display part number
+    const getDisplayPartNumber = () => {
+      if (item.assemblyId && item.assemblyId !== item.name) return item.assemblyId
+      if (item.partNumber && item.partNumber !== item.name) return item.partNumber
+      if (item.partIdOrAssemblyId && item.partIdOrAssemblyId !== item.name) return item.partIdOrAssemblyId
+      if (item.id && item.id !== item.name && !item.id.includes(item.name || '')) return item.id
+      return null
+    }
+    const displayPartNumber = getDisplayPartNumber()
+    
+    // Enhanced type detection
+    const isAssembly = item.isAssembly || item.type === 'ASSEMBLY' || item.type === 'COMPLEX' || 
+                      item.type === 'KIT' || item.type === 'SUB_ASSEMBLY' || item.type === 'SIMPLE' ||
+                      hasChildren
+    const displayQuantity = item.quantity
+    
+    // Generate unique key
+    const uniqueKey = `${itemId}-${level}-${index}-${item.name?.replace(/[^a-zA-Z0-9]/g, '')}-${displayQuantity}`
+
+    // Item styling based on level and type
+    const getItemStyle = () => {
+      if (level === 0) return 'bg-blue-50 border-l-4 border-blue-600 font-semibold'
+      if (isAssembly) return 'bg-gray-50 border-l-4 border-gray-400'
+      return ''
+    }
+
+    // Icon color based on type
+    const getIconColor = () => {
+      if (level === 0) return 'text-blue-600'
+      if (item.type === 'KIT') return 'text-purple-600'
+      if (item.type === 'SUB_ASSEMBLY') return 'text-indigo-600'
+      if (isAssembly) return 'text-blue-500'
+      return 'text-gray-400'
+    }
+
+    return (
+      <div>
+        <div 
+          className={`flex items-center justify-between py-2 px-3 hover:bg-slate-50 rounded-md transition-all duration-200 ${getItemStyle()}`}
+          style={{ marginLeft: `${level * 20}px` }}
+        >
+          <div className="flex items-center space-x-2 flex-1">
+            {hasChildren && (
+              <button
+                onClick={() => toggleItem(itemId)}
+                className="p-0.5 hover:bg-gray-200 rounded transition-colors"
+              >
+                {isExpanded ? (
+                  <ChevronDown className="w-4 h-4 text-gray-600" />
+                ) : (
+                  <ChevronRight className="w-4 h-4 text-gray-600" />
+                )}
+              </button>
+            )}
+            {!hasChildren && <div className="w-5" />}
+            
+            {/* Icon based on item type */}
+            {isAssembly ? (
+              isExpanded ? (
+                <FolderOpen className={`w-4 h-4 ${getIconColor()}`} />
+              ) : (
+                <Folder className={`w-4 h-4 ${getIconColor()}`} />
+              )
+            ) : (
+              <FileIcon className="w-4 h-4 text-gray-400" />
+            )}
+            
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className={`${level === 0 ? "font-semibold text-gray-900" : level === 1 ? "font-medium text-gray-800" : "text-sm text-gray-700"} truncate`}>
+                  {item.name}
+                </span>
+                {item.isCustom && (
+                  <Badge variant="outline" className="text-xs shrink-0">Custom</Badge>
+                )}
+              </div>
+              <div className="flex items-center gap-2 text-xs text-gray-500 mt-0.5">
+                {displayPartNumber && (
+                  <span className="font-mono truncate">{displayPartNumber}</span>
+                )}
+                {item.description && (
+                  <span className="text-gray-400 truncate max-w-[300px]" title={item.description}>
+                    • {item.description}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+          
+          <div className="flex items-center space-x-2 shrink-0">
+            {hasChildren && (
+              <Badge variant="outline" className="text-xs">
+                <Layers className="w-3 h-3 mr-1" />
+                {childItems.length} {childItems.length === 1 ? 'component' : 'components'}
+              </Badge>
+            )}
+            <span className="font-medium text-sm min-w-[80px] text-right bg-gray-100 px-2 py-1 rounded">
+              Qty: {displayQuantity}
+            </span>
+          </div>
+        </div>
+        
+        {hasChildren && isExpanded && (
+          <div className="ml-4 mt-1">
+            <div className="border-l-2 border-gray-300 pl-2">
+              {childItems.map((child, childIndex) => {
+                const childKey = child.id || child.assemblyId || child.partNumber || `${child.name}-${level}-${childIndex}`
+                return (
+                  <div key={childKey}>
+                    {renderBOMItem(child, level + 1, childIndex)}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  // Calculate hierarchical statistics without flattening to avoid duplication
+  const calculateOrderStats = (items: BOMItem[]): { totalItems: number; leafItems: number; leafQuantity: number } => {
+    const calculateStats = (items: BOMItem[]): { totalItems: number, leafItems: number, leafQuantity: number } => {
+      if (!items || items.length === 0) return { totalItems: 0, leafItems: 0, leafQuantity: 0 }
+      
+      let totalItems = 0
+      let leafItems = 0
+      let leafQuantity = 0
+      
+      items.forEach(item => {
+        totalItems += 1
+        const itemQty = item.quantity || 0
+        
+        const childItems = item.children || item.subItems || item.components || []
+        if (childItems.length === 0) {
+          // This is a leaf item (actual part)
+          leafItems += 1
+          leafQuantity += itemQty
+        } else {
+          // This is an assembly, recursively calculate children stats
+          const childStats = calculateStats(childItems)
+          totalItems += childStats.totalItems
+          leafItems += childStats.leafItems
+          leafQuantity += childStats.leafQuantity
+        }
+      })
+      
+      return { totalItems, leafItems, leafQuantity }
+    }
+    
+    return calculateStats(items)
   }
 
   if (loading) {
@@ -433,43 +698,57 @@ export function SimpleBOMApproval({ onOrderUpdate }: SimpleBOMApprovalProps) {
               </div>
             ) : orderBOM.length > 0 ? (
               <div className="space-y-4">
-                {/* BOM Summary */}
-                {stats && (
-                  <div className="flex items-center justify-between p-4 bg-blue-50 rounded-lg mb-4">
-                    <h3 className="font-semibold text-gray-700">BOM Summary</h3>
-                    <div className="flex items-center gap-6">
-                      <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 rounded-full bg-blue-500" />
-                        <span className="text-sm font-medium">{stats.totalAssemblies} Assemblies</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 rounded-full bg-green-500" />
-                        <span className="text-sm font-medium">{stats.totalParts} Parts</span>
-                      </div>
-                      <div className="pl-4 border-l-2 border-gray-300">
-                        <span className="text-lg font-bold text-gray-800">{stats.totalParts + stats.totalAssemblies} Total</span>
-                      </div>
-                    </div>
+                {/* Controls and Summary */}
+                <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" onClick={() => expandAll(orderBOM)}>
+                      Expand All
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={collapseAll}>
+                      Collapse All
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => order && handlePDFExport(order.id, order.poNumber)}
+                      disabled={!order || pdfExporting.has(order?.id || '')}
+                    >
+                      {pdfExporting.has(order?.id || '') ? (
+                        <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                      ) : (
+                        <FileText className="w-4 h-4 mr-1" />
+                      )}
+                      {pdfExporting.has(order?.id || '') ? 'Generating...' : 'Export PDF'}
+                    </Button>
                   </div>
-                )}
+                  {stats && (
+                    <div className="flex items-center gap-4 text-sm">
+                      <span className="font-medium">{stats.leafItems} parts</span>
+                      <span className="text-gray-400">•</span>
+                      <span className="font-medium">{stats.totalItems} total items</span>
+                    </div>
+                  )}
+                </div>
 
-                {/* BOM Items Table */}
+                {/* Hierarchical BOM Display */}
                 <div className="border rounded-lg overflow-hidden">
-                  <div className="overflow-x-auto">
-                    <Table>
-                      <TableHeader className="sticky top-0 z-10">
-                        <TableRow className="bg-gray-100 border-b-2">
-                          <TableHead className="font-semibold text-gray-700 w-2/5">Component Name</TableHead>
-                          <TableHead className="text-center font-semibold text-gray-700 w-1/5">Part Number</TableHead>
-                          <TableHead className="text-center font-semibold text-gray-700 w-1/5">Type</TableHead>
-                          <TableHead className="text-center font-semibold text-gray-700 w-1/10">Qty</TableHead>
-                          <TableHead className="text-center font-semibold text-gray-700 w-1/5">Category</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {renderBOMItems(orderBOM)}
-                      </TableBody>
-                    </Table>
+                  <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border-b">
+                    <h3 className="font-semibold text-lg text-gray-900">Bill of Materials</h3>
+                    <p className="text-sm text-gray-600">Hierarchical component structure</p>
+                  </div>
+                  <div className="p-4">
+                    <ScrollArea className="h-[400px] pr-4">
+                      <div className="space-y-1">
+                        {orderBOM.map((item, idx) => {
+                          const itemKey = item.id || item.assemblyId || item.partNumber || `${item.name}-root-${idx}`
+                          return (
+                            <div key={itemKey}>
+                              {renderBOMItem(item, 0, idx)}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </ScrollArea>
                   </div>
                 </div>
               </div>
@@ -607,6 +886,19 @@ export function SimpleBOMApproval({ onOrderUpdate }: SimpleBOMApprovalProps) {
                               )}
                               Generate & View BOM
                             </Button>
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              onClick={() => handlePDFExport(order.id, order.poNumber)}
+                              disabled={pdfExporting.has(order.id)}
+                            >
+                              {pdfExporting.has(order.id) ? (
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                              ) : (
+                                <FileText className="w-4 h-4 mr-2" />
+                              )}
+                              {pdfExporting.has(order.id) ? 'Generating...' : 'Export PDF'}
+                            </Button>
                             <Button
                               onClick={() => handleApproveSingle(order.id)}
                               disabled={actionLoading === order.id}
@@ -687,6 +979,19 @@ export function SimpleBOMApproval({ onOrderUpdate }: SimpleBOMApprovalProps) {
                               <Eye className="w-4 h-4 mr-2" />
                             )}
                             Generate & View BOM
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={() => handlePDFExport(order.id, order.poNumber)}
+                            disabled={pdfExporting.has(order.id)}
+                          >
+                            {pdfExporting.has(order.id) ? (
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            ) : (
+                              <FileText className="w-4 h-4 mr-2" />
+                            )}
+                            {pdfExporting.has(order.id) ? 'PDF...' : 'PDF'}
                           </Button>
                           <Button variant="outline" size="sm" asChild>
                             <a href={`/orders/${order.id}`} target="_blank" rel="noopener noreferrer">
