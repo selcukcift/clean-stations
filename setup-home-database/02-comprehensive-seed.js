@@ -520,10 +520,53 @@ async function seedQcTemplates() {
         order: 29,
         isRequired: false,
         notesPrompt: 'Document any additional observations, recommendations, or follow-up actions required'
+      },
+      
+      // Enhanced QC items demonstrating new features
+      {
+        section: 'Part-Specific Checks',
+        checklistItem: 'Verify basin part number matches order specification',
+        itemType: 'TEXT_INPUT',
+        order: 30,
+        isRequired: true,
+        repeatPer: 'basin',
+        relatedPartNumber: 'BASIN-*',
+        defaultValue: 'Scan or enter part number',
+        notesPrompt: 'Record actual part number found on basin'
+      },
+      {
+        section: 'Part-Specific Checks',
+        checklistItem: 'Control box assembly inspection',
+        itemType: 'PASS_FAIL',
+        order: 31,
+        isRequired: true,
+        relatedAssemblyId: 'CTRL-BOX-*',
+        applicabilityCondition: 'E_SINK or E_DRAIN',
+        notesPrompt: 'Document any control box issues or observations'
+      },
+      {
+        section: 'Measurements',
+        checklistItem: 'Record basin depth measurement',
+        itemType: 'NUMERIC_INPUT',
+        order: 32,
+        isRequired: true,
+        repeatPer: 'basin',
+        defaultValue: '0.0',
+        expectedValue: 'As per customer specification',
+        notesPrompt: 'Measure in inches, record to nearest 0.1"'
+      },
+      {
+        section: 'Quality Photos',
+        checklistItem: 'Upload photo of completed assembly',
+        itemType: 'TEXT_INPUT',
+        order: 33,
+        isRequired: true,
+        defaultValue: 'Photo required',
+        notesPrompt: 'Take photo showing overall assembly from front angle'
       }
     ];
     
-    // Create all checklist items
+    // Create all checklist items with enhanced fields
     for (const item of checklistItems) {
       await prisma.qcFormTemplateItem.create({
         data: {
@@ -537,7 +580,10 @@ async function seedQcTemplates() {
           isRequired: item.isRequired,
           applicabilityCondition: item.applicabilityCondition || null,
           notesPrompt: item.notesPrompt || null,
-          repeatPer: item.repeatPer || null
+          repeatPer: item.repeatPer || null,
+          relatedPartNumber: item.relatedPartNumber || null,
+          relatedAssemblyId: item.relatedAssemblyId || null,
+          defaultValue: item.defaultValue || null
         }
       });
     }
