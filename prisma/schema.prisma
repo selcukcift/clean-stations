@@ -8,147 +8,70 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model Part {
-  partId                 String                 @id @unique @map("PartID")
-  name                   String
-  manufacturerPartNumber String?
-  type                   PartType
-  status                 Status
-  photoURL               String?
-  technicalDrawingURL    String?
-  createdAt              DateTime               @default(now())
-  updatedAt              DateTime               @updatedAt
-  customAttributes       Json?
-  manufacturerName       String?
-  revision               String                 @default("1")
-  unitOfMeasure          String?
-  assemblyComponents     AssemblyComponent[]
-  inventoryItems         InventoryItem[]
-  serviceOrderItems      ServiceOrderItem[]     @relation("PartServiceOrders")
-  taskRequiredParts      TaskRequiredPart[]
-  templateStepParts      TaskTemplateStepPart[]
-}
-
 model Assembly {
-  assemblyId        String              @id @unique @map("AssemblyID")
-  name              String
-  type              AssemblyType
-  categoryCode      String?
-  subcategoryCode   String?
-  workInstructionId String?
-  qrData            String?
-  kitComponentsJson String?
-  createdAt         DateTime            @default(now())
-  updatedAt         DateTime            @updatedAt
-  customAttributes  Json?
-  isOrderable       Boolean             @default(false)
-  revision          String              @default("1")
-  childOfAssemblies AssemblyComponent[] @relation("ChildComponents")
-  components        AssemblyComponent[] @relation("ParentComponents")
-  subcategories     Subcategory[]       @relation("SubcategoryAssemblies")
+  AssemblyID                                                     String              @id @unique
+  name                                                           String
+  type                                                           AssemblyType
+  categoryCode                                                   String?
+  subcategoryCode                                                String?
+  workInstructionId                                              String?
+  qrData                                                         String?
+  kitComponentsJson                                              String?
+  createdAt                                                      DateTime            @default(now())
+  updatedAt                                                      DateTime
+  revision                                                       String              @default("1")
+  customAttributes                                               Json?
+  isOrderable                                                    Boolean             @default(false)
+  AssemblyComponent_AssemblyComponent_childAssemblyIdToAssembly  AssemblyComponent[] @relation("AssemblyComponent_childAssemblyIdToAssembly")
+  AssemblyComponent_AssemblyComponent_parentAssemblyIdToAssembly AssemblyComponent[] @relation("AssemblyComponent_parentAssemblyIdToAssembly")
+  Subcategory                                                    Subcategory[]       @relation("SubcategoryAssemblies")
 }
 
 model AssemblyComponent {
-  id               Int       @id @default(autoincrement())
-  quantity         Int
-  notes            String?
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
-  parentAssemblyId String
-  childPartId      String?
-  childAssemblyId  String?
-  childAssembly    Assembly? @relation("ChildComponents", fields: [childAssemblyId], references: [assemblyId])
-  childPart        Part?     @relation(fields: [childPartId], references: [partId])
-  parentAssembly   Assembly  @relation("ParentComponents", fields: [parentAssemblyId], references: [assemblyId])
+  id                                                    Int       @id @default(autoincrement())
+  quantity                                              Int
+  notes                                                 String?
+  createdAt                                             DateTime  @default(now())
+  updatedAt                                             DateTime
+  parentAssemblyId                                      String
+  childPartId                                           String?
+  childAssemblyId                                       String?
+  Assembly_AssemblyComponent_childAssemblyIdToAssembly  Assembly? @relation("AssemblyComponent_childAssemblyIdToAssembly", fields: [childAssemblyId], references: [AssemblyID])
+  Part                                                  Part?     @relation(fields: [childPartId], references: [PartID])
+  Assembly_AssemblyComponent_parentAssemblyIdToAssembly Assembly  @relation("AssemblyComponent_parentAssemblyIdToAssembly", fields: [parentAssemblyId], references: [AssemblyID])
 }
 
-model Category {
-  categoryId    String        @id @unique
-  name          String
-  description   String?
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
-  subcategories Subcategory[]
+model AssociatedDocument {
+  id         String   @id
+  docName    String
+  docURL     String
+  uploadedBy String
+  timestamp  DateTime @default(now())
+  docType    String?
+  orderId    String
+  Order      Order    @relation(fields: [orderId], references: [id])
 }
 
-model Subcategory {
-  subcategoryId String     @id @unique
-  name          String
-  description   String?
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
-  categoryId    String
-  category      Category   @relation(fields: [categoryId], references: [categoryId])
-  assemblies    Assembly[] @relation("SubcategoryAssemblies")
-}
+model AuditLog {
+  id         String   @id
+  userId     String?
+  action     String
+  entityType String
+  entityId   String
+  oldValues  Json?
+  newValues  Json?
+  ipAddress  String?
+  userAgent  String?
+  sessionId  String?
+  createdAt  DateTime @default(now())
+  User       User?    @relation(fields: [userId], references: [id])
 
-model User {
-  id                      String                   @id @default(cuid())
-  username                String                   @unique
-  email                   String                   @unique
-  passwordHash            String
-  fullName                String
-  role                    UserRole
-  isActive                Boolean                  @default(true)
-  initials                String
-  createdAt               DateTime                 @default(now())
-  updatedAt               DateTime                 @updatedAt
-  lastLoginAt             DateTime?
-  lockedUntil             DateTime?
-  loginAttempts           Int                      @default(0)
-  assignedTaskIds         String[]                 @default([])
-  auditLogs               AuditLog[]               @relation("UserAuditLogs")
-  uploadedFiles           FileUpload[]             @relation("UserFileUploads")
-  inventoryUpdates        InventoryItem[]          @relation("UserInventoryUpdates")
-  inventoryTransactions   InventoryTransaction[]   @relation("UserInventoryTransactions")
-  notifications           Notification[]           @relation("UserNotifications")
-  notificationPreferences NotificationPreference[]
-  createdOrders           Order[]                  @relation("OrderCreatedBy")
-  resolvedComments        OrderComment[]           @relation("UserResolvedComments")
-  orderComments           OrderComment[]           @relation("UserOrderComments")
-  historyLogs             OrderHistoryLog[]        @relation("UserHistoryLogs")
-  qcResults               OrderQcResult[]          @relation("UserQcResults")
-  orderTestResults        OrderTestResult[]
-  serviceOrders           ServiceOrder[]           @relation("UserServiceOrders")
-  systemNotifications     SystemNotification[]     @relation("UserSystemNotifications")
-  assignedTasks           Task[]                   @relation("TaskAssignee")
-  taskNotes               TaskNote[]               @relation("TaskNoteAuthor")
-}
-
-model Order {
-  id                    String                 @id @default(cuid())
-  poNumber              String                 @unique
-  buildNumbers          String[]
-  customerName          String
-  projectName           String?
-  salesPerson           String
-  wantDate              DateTime
-  notes                 String?
-  language              String                 @default("EN")
-  orderStatus           OrderStatus            @default(ORDER_CREATED)
-  currentAssignee       String?
-  createdAt             DateTime               @default(now())
-  updatedAt             DateTime               @updatedAt
-  createdById           String
-  associatedDocuments   AssociatedDocument[]
-  basinConfigurations   BasinConfiguration[]
-  generatedBoms         Bom[]                  @relation("OrderBoms")
-  faucetConfigurations  FaucetConfiguration[]
-  inventoryTransactions InventoryTransaction[]
-  notifications         Notification[]
-  createdBy             User                   @relation("OrderCreatedBy", fields: [createdById], references: [id])
-  comments              OrderComment[]
-  historyLogs           OrderHistoryLog[]
-  qcResults             OrderQcResult[]
-  orderTestResults      OrderTestResult[]
-  selectedAccessories   SelectedAccessory[]
-  sinkConfigurations    SinkConfiguration[]
-  sprayerConfigurations SprayerConfiguration[]
-  tasks                 Task[]
+  @@index([entityType, entityId])
+  @@index([userId, createdAt])
 }
 
 model BasinConfiguration {
-  id                  String   @id @default(cuid())
+  id                  String   @id
   buildNumber         String
   basinTypeId         String
   basinSizePartNumber String?
@@ -158,38 +81,336 @@ model BasinConfiguration {
   customDepth         Float?
   customLength        Float?
   customWidth         Float?
-  order               Order    @relation(fields: [orderId], references: [id])
+  Order               Order    @relation(fields: [orderId], references: [id])
+}
 
-  @@index([orderId, buildNumber])
+model Bom {
+  id          String    @id
+  buildNumber String?
+  generatedAt DateTime  @default(now())
+  orderId     String
+  Order       Order     @relation(fields: [orderId], references: [id])
+  BomItem     BomItem[]
+}
+
+model BomItem {
+  id                 String    @id
+  partIdOrAssemblyId String
+  name               String
+  quantity           Int
+  itemType           String
+  category           String?
+  isCustom           Boolean   @default(false)
+  parentId           String?
+  bomId              String
+  Bom                Bom       @relation(fields: [bomId], references: [id])
+  BomItem            BomItem?  @relation("BomItemToBomItem", fields: [parentId], references: [id])
+  other_BomItem      BomItem[] @relation("BomItemToBomItem")
+}
+
+model Category {
+  categoryId  String        @id @unique
+  name        String
+  description String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime
+  Subcategory Subcategory[]
 }
 
 model FaucetConfiguration {
-  id              String  @id @default(cuid())
+  id              String  @id
   buildNumber     String
   faucetTypeId    String
   faucetQuantity  Int     @default(1)
   faucetPlacement String?
   orderId         String
-  order           Order   @relation(fields: [orderId], references: [id])
-
-  @@index([orderId, buildNumber])
+  Order           Order   @relation(fields: [orderId], references: [id])
 }
 
-model SprayerConfiguration {
-  id               String   @id @default(cuid())
-  buildNumber      String
-  hasSpray         Boolean  @default(false)
-  sprayerTypeIds   String[]
-  sprayerQuantity  Int      @default(0)
-  sprayerLocations String[]
-  orderId          String
-  order            Order    @relation(fields: [orderId], references: [id])
+model FileUpload {
+  id                          String                        @id
+  filename                    String
+  originalName                String
+  mimeType                    String
+  size                        Int
+  path                        String
+  uploadedById                String
+  isPublic                    Boolean                       @default(false)
+  metadata                    Json?
+  createdAt                   DateTime                      @default(now())
+  updatedAt                   DateTime
+  User                        User                          @relation(fields: [uploadedById], references: [id])
+  OrderQcItemResult           OrderQcItemResult[]
+  QcItemResultMediaAttachment QcItemResultMediaAttachment[]
 
-  @@index([orderId, buildNumber])
+  @@index([uploadedById, createdAt])
+}
+
+model InventoryItem {
+  id                   String                 @id
+  partId               String?
+  assemblyId           String?
+  location             String?
+  quantityOnHand       Int                    @default(0)
+  quantityReserved     Int                    @default(0)
+  quantityAvailable    Int                    @default(0)
+  reorderPoint         Int?
+  maxStock             Int?
+  lastUpdated          DateTime               @default(now())
+  updatedById          String
+  Part                 Part?                  @relation(fields: [partId], references: [PartID], onDelete: Cascade)
+  User                 User                   @relation(fields: [updatedById], references: [id])
+  InventoryTransaction InventoryTransaction[]
+
+  @@unique([partId, assemblyId, location])
+  @@index([partId, assemblyId])
+}
+
+model InventoryTransaction {
+  id              String                   @id
+  inventoryItemId String
+  type            InventoryTransactionType
+  quantity        Int
+  reason          String?
+  orderId         String?
+  taskId          String?
+  performedById   String
+  createdAt       DateTime                 @default(now())
+  InventoryItem   InventoryItem            @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
+  Order           Order?                   @relation(fields: [orderId], references: [id])
+  User            User                     @relation(fields: [performedById], references: [id])
+  Task            Task?                    @relation(fields: [taskId], references: [id])
+
+  @@index([inventoryItemId, createdAt])
+}
+
+model Notification {
+  id          String   @id
+  message     String
+  linkToOrder String?
+  isRead      Boolean  @default(false)
+  type        String?
+  createdAt   DateTime @default(now())
+  recipientId String
+  Order       Order?   @relation(fields: [linkToOrder], references: [id])
+  User        User     @relation(fields: [recipientId], references: [id])
+}
+
+model NotificationPreference {
+  id               String                @id
+  userId           String
+  notificationType NotificationType
+  inAppEnabled     Boolean               @default(true)
+  emailEnabled     Boolean               @default(false)
+  frequency        NotificationFrequency @default(IMMEDIATE)
+  quietHoursStart  Int?
+  quietHoursEnd    Int?
+  emailAddress     String?
+  isActive         Boolean               @default(true)
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime
+  User             User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, notificationType])
+  @@index([userId, notificationType])
+}
+
+model Order {
+  id                   String                 @id
+  poNumber             String                 @unique
+  buildNumbers         String[]
+  customerName         String
+  projectName          String?
+  salesPerson          String
+  wantDate             DateTime
+  notes                String?
+  language             String                 @default("EN")
+  orderStatus          OrderStatus            @default(ORDER_CREATED)
+  currentAssignee      String?
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime
+  createdById          String
+  AssociatedDocument   AssociatedDocument[]
+  BasinConfiguration   BasinConfiguration[]
+  Bom                  Bom[]
+  FaucetConfiguration  FaucetConfiguration[]
+  InventoryTransaction InventoryTransaction[]
+  Notification         Notification[]
+  User                 User                   @relation(fields: [createdById], references: [id])
+  OrderComment         OrderComment[]
+  OrderHistoryLog      OrderHistoryLog[]
+  OrderQcResult        OrderQcResult[]
+  SelectedAccessory    SelectedAccessory[]
+  SinkConfiguration    SinkConfiguration[]
+  SprayerConfiguration SprayerConfiguration[]
+  Task                 Task[]
+
+  @@unique([poNumber, buildNumbers])
+}
+
+model OrderComment {
+  id                                 String               @id
+  orderId                            String
+  userId                             String
+  content                            String
+  isInternal                         Boolean              @default(false)
+  priority                           OrderCommentPriority @default(NORMAL)
+  category                           String?
+  isResolved                         Boolean              @default(false)
+  resolvedAt                         DateTime?
+  resolvedBy                         String?
+  mentions                           String[]             @default([])
+  attachments                        String[]             @default([])
+  createdAt                          DateTime             @default(now())
+  updatedAt                          DateTime
+  Order                              Order                @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  User_OrderComment_resolvedByToUser User?                @relation("OrderComment_resolvedByToUser", fields: [resolvedBy], references: [id], onDelete: NoAction)
+  User_OrderComment_userIdToUser     User                 @relation("OrderComment_userIdToUser", fields: [userId], references: [id], onDelete: NoAction)
+
+  @@index([isResolved, priority])
+  @@index([orderId, createdAt])
+  @@index([userId, createdAt])
+}
+
+model OrderHistoryLog {
+  id        String   @id
+  timestamp DateTime @default(now())
+  action    String
+  oldStatus String?
+  newStatus String?
+  notes     String?
+  orderId   String
+  userId    String
+  Order     Order    @relation(fields: [orderId], references: [id])
+  User      User     @relation(fields: [userId], references: [id])
+}
+
+model OrderQcItemResult {
+  id                          String                        @id
+  orderQcResultId             String
+  qcFormTemplateItemId        String
+  resultValue                 String?
+  isConformant                Boolean?
+  notes                       String?
+  attachedDocumentId          String?
+  FileUpload                  FileUpload?                   @relation(fields: [attachedDocumentId], references: [id])
+  OrderQcResult               OrderQcResult                 @relation(fields: [orderQcResultId], references: [id], onDelete: Cascade)
+  QcFormTemplateItem          QcFormTemplateItem            @relation(fields: [qcFormTemplateItemId], references: [id])
+  QcItemResultMediaAttachment QcItemResultMediaAttachment[]
+}
+
+model OrderQcResult {
+  id                String              @id
+  orderId           String
+  qcFormTemplateId  String
+  qcPerformedById   String
+  qcTimestamp       DateTime            @default(now())
+  overallStatus     QcStatus            @default(PENDING)
+  notes             String?
+  OrderQcItemResult OrderQcItemResult[]
+  Order             Order               @relation(fields: [orderId], references: [id])
+  QcFormTemplate    QcFormTemplate      @relation(fields: [qcFormTemplateId], references: [id])
+  User              User                @relation(fields: [qcPerformedById], references: [id])
+
+  @@unique([orderId, qcFormTemplateId])
+}
+
+model Part {
+  PartID                 String              @id @unique
+  name                   String
+  manufacturerPartNumber String?
+  type                   PartType
+  status                 Status
+  photoURL               String?
+  technicalDrawingURL    String?
+  createdAt              DateTime            @default(now())
+  updatedAt              DateTime
+  revision               String              @default("1")
+  customAttributes       Json?
+  AssemblyComponent      AssemblyComponent[]
+  InventoryItem          InventoryItem[]
+  ServiceOrderItem       ServiceOrderItem[]
+}
+
+model QcFormTemplate {
+  id                     String               @id
+  name                   String
+  version                String               @default("1.0")
+  description            String?
+  isActive               Boolean              @default(true)
+  appliesToProductFamily String?
+  createdAt              DateTime             @default(now())
+  updatedAt              DateTime
+  OrderQcResult          OrderQcResult[]
+  QcFormTemplateItem     QcFormTemplateItem[]
+}
+
+model QcFormTemplateItem {
+  id                     String              @id
+  templateId             String
+  section                String
+  checklistItem          String
+  itemType               QcItemType
+  options                Json?
+  expectedValue          String?
+  order                  Int
+  isRequired             Boolean             @default(true)
+  applicabilityCondition String?
+  defaultValue           String?
+  notesPrompt            String?
+  relatedAssemblyId      String?
+  relatedPartNumber      String?
+  repeatPer              String?
+  OrderQcItemResult      OrderQcItemResult[]
+  QcFormTemplate         QcFormTemplate      @relation(fields: [templateId], references: [id], onDelete: Cascade)
+}
+
+model QcItemResultMediaAttachment {
+  id                  String            @id
+  orderQcItemResultId String
+  fileUploadId        String
+  createdAt           DateTime          @default(now())
+  FileUpload          FileUpload        @relation(fields: [fileUploadId], references: [id])
+  OrderQcItemResult   OrderQcItemResult @relation(fields: [orderQcItemResultId], references: [id], onDelete: Cascade)
+
+  @@index([fileUploadId])
+  @@index([orderQcItemResultId])
+}
+
+model SelectedAccessory {
+  id          String @id
+  buildNumber String
+  assemblyId  String
+  quantity    Int    @default(1)
+  orderId     String
+  Order       Order  @relation(fields: [orderId], references: [id])
+}
+
+model ServiceOrder {
+  id               String             @id
+  requestedById    String
+  requestTimestamp DateTime           @default(now())
+  status           ServiceOrderStatus @default(PENDING_APPROVAL)
+  notes            String?
+  procurementNotes String?
+  updatedAt        DateTime
+  User             User               @relation(fields: [requestedById], references: [id])
+  ServiceOrderItem ServiceOrderItem[]
+}
+
+model ServiceOrderItem {
+  id                String       @id
+  serviceOrderId    String
+  partId            String
+  quantityRequested Int
+  quantityApproved  Int?
+  notes             String?
+  Part              Part         @relation(fields: [partId], references: [PartID])
+  ServiceOrder      ServiceOrder @relation(fields: [serviceOrderId], references: [id], onDelete: Cascade)
 }
 
 model SinkConfiguration {
-  id                        String   @id @default(cuid())
+  id                        String   @id
   buildNumber               String
   sinkModelId               String
   width                     Int?
@@ -205,331 +426,34 @@ model SinkConfiguration {
   controlBoxId              String?
   orderId                   String
   createdAt                 DateTime @default(now())
-  updatedAt                 DateTime @updatedAt
-  order                     Order    @relation(fields: [orderId], references: [id])
-
-  @@index([orderId, buildNumber])
+  updatedAt                 DateTime
+  Order                     Order    @relation(fields: [orderId], references: [id])
 }
 
-model SelectedAccessory {
-  id          String @id @default(cuid())
-  buildNumber String
-  assemblyId  String
-  quantity    Int    @default(1)
-  orderId     String
-  order       Order  @relation(fields: [orderId], references: [id])
-
-  @@unique([orderId, buildNumber, assemblyId])
-}
-
-model AssociatedDocument {
-  id         String   @id @default(cuid())
-  docName    String
-  docURL     String
-  uploadedBy String
-  timestamp  DateTime @default(now())
-  docType    String?
-  orderId    String
-  order      Order    @relation(fields: [orderId], references: [id])
-}
-
-model Bom {
-  id          String    @id @default(cuid())
-  buildNumber String?
-  generatedAt DateTime  @default(now())
-  orderId     String
-  order       Order     @relation("OrderBoms", fields: [orderId], references: [id])
-  bomItems    BomItem[]
-}
-
-model BomItem {
-  id                 String    @id @default(cuid())
-  partIdOrAssemblyId String
-  name               String
-  quantity           Int
-  itemType           String
-  category           String?
-  isCustom           Boolean   @default(false)
-  parentId           String?
-  bomId              String
-  bom                Bom       @relation(fields: [bomId], references: [id])
-  parent             BomItem?  @relation("ParentChildBomItem", fields: [parentId], references: [id])
-  children           BomItem[] @relation("ParentChildBomItem")
-}
-
-model OrderHistoryLog {
-  id        String   @id @default(cuid())
-  timestamp DateTime @default(now())
-  action    String
-  oldStatus String?
-  newStatus String?
-  notes     String?
-  orderId   String
-  userId    String
-  order     Order    @relation(fields: [orderId], references: [id])
-  user      User     @relation("UserHistoryLogs", fields: [userId], references: [id])
-}
-
-model OrderComment {
-  id          String               @id @default(cuid())
-  orderId     String
-  userId      String
-  content     String
-  isInternal  Boolean              @default(false)
-  priority    OrderCommentPriority @default(NORMAL)
-  category    String?
-  isResolved  Boolean              @default(false)
-  resolvedAt  DateTime?
-  resolvedBy  String?
-  mentions    String[]             @default([])
-  attachments String[]             @default([])
-  createdAt   DateTime             @default(now())
-  updatedAt   DateTime             @updatedAt
-  order       Order                @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  resolver    User?                @relation("UserResolvedComments", fields: [resolvedBy], references: [id])
-  user        User                 @relation("UserOrderComments", fields: [userId], references: [id])
-
-  @@index([orderId, createdAt])
-  @@index([userId, createdAt])
-  @@index([isResolved, priority])
-}
-
-model Notification {
-  id          String   @id @default(cuid())
-  message     String
-  linkToOrder String?
-  isRead      Boolean  @default(false)
-  type        String?
-  createdAt   DateTime @default(now())
-  recipientId String
-  order       Order?   @relation(fields: [linkToOrder], references: [id])
-  recipient   User     @relation("UserNotifications", fields: [recipientId], references: [id])
-}
-
-model QcFormTemplate {
-  id                     String               @id @default(cuid())
-  name                   String
-  version                String               @default("1.0")
-  description            String?
-  isActive               Boolean              @default(true)
-  appliesToProductFamily String?
-  createdAt              DateTime             @default(now())
-  updatedAt              DateTime             @updatedAt
-  orderQcResults         OrderQcResult[]
-  items                  QcFormTemplateItem[]
-}
-
-model QcFormTemplateItem {
-  id                     String              @id @default(cuid())
-  templateId             String
-  section                String
-  checklistItem          String
-  itemType               QcItemType
-  options                Json?
-  expectedValue          String?
-  order                  Int
-  isRequired             Boolean             @default(true)
-  applicabilityCondition String?
-  defaultValue           String?
-  notesPrompt            String?
-  relatedAssemblyId      String?
-  relatedPartNumber      String?
-  repeatPer              String?
-  itemResults            OrderQcItemResult[]
-  template               QcFormTemplate      @relation(fields: [templateId], references: [id], onDelete: Cascade)
-  tasks                  Task[]
-  templateSteps          TaskTemplateStep[]
-}
-
-model OrderQcResult {
-  id               String              @id @default(cuid())
+model SprayerConfiguration {
+  id               String   @id
+  buildNumber      String
+  hasSpray         Boolean  @default(false)
+  sprayerTypeIds   String[]
+  sprayerQuantity  Int      @default(0)
+  sprayerLocations String[]
   orderId          String
-  qcFormTemplateId String
-  qcPerformedById  String
-  qcTimestamp      DateTime            @default(now())
-  overallStatus    QcStatus            @default(PENDING)
-  notes            String?
-  externalJobId    String?
-  itemResults      OrderQcItemResult[]
-  order            Order               @relation(fields: [orderId], references: [id])
-  qcFormTemplate   QcFormTemplate      @relation(fields: [qcFormTemplateId], references: [id])
-  qcPerformedBy    User                @relation("UserQcResults", fields: [qcPerformedById], references: [id])
-
-  @@unique([orderId, qcFormTemplateId])
+  Order            Order    @relation(fields: [orderId], references: [id])
 }
 
-model OrderQcItemResult {
-  id                    String                        @id @default(cuid())
-  orderQcResultId       String
-  qcFormTemplateItemId  String
-  resultValue           String?
-  isConformant          Boolean?
-  notes                 String?
-  attachedDocumentId    String?
-  isNotApplicable       Boolean                       @default(false)
-  repetitionInstanceKey String?
-  attachedDocument      FileUpload?                   @relation("QcResultDocument", fields: [attachedDocumentId], references: [id])
-  orderQcResult         OrderQcResult                 @relation(fields: [orderQcResultId], references: [id], onDelete: Cascade)
-  qcFormTemplateItem    QcFormTemplateItem            @relation(fields: [qcFormTemplateItemId], references: [id])
-  mediaAttachments      QcItemResultMediaAttachment[]
-}
-
-model ServiceOrder {
-  id               String             @id @default(cuid())
-  requestedById    String
-  requestTimestamp DateTime           @default(now())
-  status           ServiceOrderStatus @default(PENDING_APPROVAL)
-  notes            String?
-  procurementNotes String?
-  updatedAt        DateTime           @updatedAt
-  requestedBy      User               @relation("UserServiceOrders", fields: [requestedById], references: [id])
-  items            ServiceOrderItem[]
-}
-
-model ServiceOrderItem {
-  id                String       @id @default(cuid())
-  serviceOrderId    String
-  partId            String
-  quantityRequested Int
-  quantityApproved  Int?
-  notes             String?
-  part              Part         @relation("PartServiceOrders", fields: [partId], references: [partId])
-  serviceOrder      ServiceOrder @relation(fields: [serviceOrderId], references: [id], onDelete: Cascade)
-}
-
-model WorkInstruction {
-  id               String                @id @default(cuid())
-  title            String
-  description      String?
-  assemblyId       String?
-  version          String                @default("1.0")
-  isActive         Boolean               @default(true)
-  estimatedMinutes Int?
-  createdAt        DateTime              @default(now())
-  updatedAt        DateTime              @updatedAt
-  tasks            Task[]
-  templateSteps    TaskTemplateStep[]
-  steps            WorkInstructionStep[]
-}
-
-model WorkInstructionStep {
-  id                String          @id @default(cuid())
-  workInstructionId String
-  stepNumber        Int
-  title             String
-  description       String
-  estimatedMinutes  Int?
-  images            String[]
-  videos            String[]
-  checkpoints       String[]
-  createdAt         DateTime        @default(now())
-  updatedAt         DateTime        @updatedAt
-  requiredTools     TaskTool[]
-  workInstruction   WorkInstruction @relation(fields: [workInstructionId], references: [id], onDelete: Cascade)
-
-  @@unique([workInstructionId, stepNumber])
-  @@index([workInstructionId, stepNumber])
-}
-
-model Tool {
-  id                String                 @id @default(cuid())
-  name              String
-  description       String?
-  category          String
-  isActive          Boolean                @default(true)
-  createdAt         DateTime               @default(now())
-  updatedAt         DateTime               @updatedAt
-  templateStepTools TaskTemplateStepTool[]
-  taskTools         TaskTool[]
-}
-
-model Task {
-  id                    String                 @id @default(cuid())
-  orderId               String
-  workInstructionId     String?
-  title                 String
-  description           String?
-  status                TaskStatus             @default(PENDING)
-  priority              TaskPriority           @default(MEDIUM)
-  assignedToId          String?
-  estimatedMinutes      Int?
-  actualMinutes         Int?
-  startedAt             DateTime?
-  completedAt           DateTime?
-  createdAt             DateTime               @default(now())
-  updatedAt             DateTime               @updatedAt
-  buildNumber           String?
-  qcFormTemplateItemId  String?
-  taskTemplateStepId    String?
-  inventoryTransactions InventoryTransaction[]
-  assignedTo            User?                  @relation("TaskAssignee", fields: [assignedToId], references: [id])
-  order                 Order                  @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  qcFormTemplateItem    QcFormTemplateItem?    @relation(fields: [qcFormTemplateItemId], references: [id])
-  taskTemplateStep      TaskTemplateStep?      @relation(fields: [taskTemplateStepId], references: [id])
-  workInstruction       WorkInstruction?       @relation(fields: [workInstructionId], references: [id])
-  dependents            TaskDependency[]       @relation("DependentTasks")
-  dependencies          TaskDependency[]       @relation("TaskDependencies")
-  notes                 TaskNote[]
-  requiredParts         TaskRequiredPart[]
-  tools                 TaskTool[]
-
-  @@index([orderId, status])
-  @@index([assignedToId, status])
-  @@index([status, priority])
-}
-
-model TaskRequiredPart {
-  id         String  @id @default(cuid())
-  taskId     String
-  partId     String
-  quantity   Int     @default(1)
-  notes      String?
-  isConsumed Boolean @default(false)
-  part       Part    @relation(fields: [partId], references: [partId])
-  task       Task    @relation(fields: [taskId], references: [id], onDelete: Cascade)
-
-  @@unique([taskId, partId])
-}
-
-model TaskDependency {
-  id          String   @id @default(cuid())
-  taskId      String
-  dependsOnId String
-  createdAt   DateTime @default(now())
-  dependsOn   Task     @relation("DependentTasks", fields: [dependsOnId], references: [id], onDelete: Cascade)
-  task        Task     @relation("TaskDependencies", fields: [taskId], references: [id], onDelete: Cascade)
-
-  @@unique([taskId, dependsOnId])
-  @@index([taskId, dependsOnId])
-}
-
-model TaskTool {
-  id     String               @id @default(cuid())
-  taskId String?
-  stepId String?
-  toolId String
-  step   WorkInstructionStep? @relation(fields: [stepId], references: [id], onDelete: Cascade)
-  task   Task?                @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  tool   Tool                 @relation(fields: [toolId], references: [id])
-
-  @@unique([taskId, toolId], name: "unique_task_tool")
-  @@unique([stepId, toolId], name: "unique_step_tool")
-}
-
-model TaskNote {
-  id        String   @id @default(cuid())
-  taskId    String
-  authorId  String
-  content   String
-  createdAt DateTime @default(now())
-  author    User     @relation("TaskNoteAuthor", fields: [authorId], references: [id], onDelete: Cascade)
-  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
-
-  @@index([taskId, createdAt])
+model Subcategory {
+  subcategoryId String     @id @unique
+  name          String
+  description   String?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime
+  categoryId    String
+  Category      Category   @relation(fields: [categoryId], references: [categoryId])
+  Assembly      Assembly[] @relation("SubcategoryAssemblies")
 }
 
 model SystemNotification {
-  id        String               @id @default(cuid())
+  id        String               @id
   userId    String?
   type      NotificationType
   title     String
@@ -539,272 +463,153 @@ model SystemNotification {
   priority  NotificationPriority @default(NORMAL)
   expiresAt DateTime?
   createdAt DateTime             @default(now())
-  updatedAt DateTime             @updatedAt
-  user      User?                @relation("UserSystemNotifications", fields: [userId], references: [id], onDelete: Cascade)
+  updatedAt DateTime
+  User      User?                @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([userId, isRead])
   @@index([type, createdAt])
+  @@index([userId, isRead])
 }
 
-model FileUpload {
-  id                      String                        @id @default(cuid())
-  filename                String
-  originalName            String
-  mimeType                String
-  size                    Int
-  path                    String
-  uploadedById            String
-  isPublic                Boolean                       @default(false)
-  metadata                Json?
-  createdAt               DateTime                      @default(now())
-  updatedAt               DateTime                      @updatedAt
-  uploadedBy              User                          @relation("UserFileUploads", fields: [uploadedById], references: [id])
-  qcItemResults           OrderQcItemResult[]           @relation("QcResultDocument")
-  testStepResults         OrderTestStepResult[]         @relation("TestStepResultDocument")
-  qcItemResultAttachments QcItemResultMediaAttachment[] @relation("QcItemMediaFile")
+model Task {
+  id                                              String                 @id
+  orderId                                         String
+  workInstructionId                               String?
+  title                                           String
+  description                                     String?
+  status                                          TaskStatus             @default(PENDING)
+  priority                                        TaskPriority           @default(MEDIUM)
+  assignedToId                                    String?
+  estimatedMinutes                                Int?
+  actualMinutes                                   Int?
+  startedAt                                       DateTime?
+  completedAt                                     DateTime?
+  createdAt                                       DateTime               @default(now())
+  updatedAt                                       DateTime
+  InventoryTransaction                            InventoryTransaction[]
+  User                                            User?                  @relation(fields: [assignedToId], references: [id])
+  Order                                           Order                  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  WorkInstruction                                 WorkInstruction?       @relation(fields: [workInstructionId], references: [id])
+  TaskDependency_TaskDependency_dependsOnIdToTask TaskDependency[]       @relation("TaskDependency_dependsOnIdToTask")
+  TaskDependency_TaskDependency_taskIdToTask      TaskDependency[]       @relation("TaskDependency_taskIdToTask")
+  TaskNote                                        TaskNote[]
+  TaskTool                                        TaskTool[]
 
-  @@index([uploadedById, createdAt])
+  @@index([assignedToId, status])
+  @@index([orderId, status])
+  @@index([status, priority])
 }
 
-model InventoryItem {
-  id                String                 @id @default(cuid())
-  partId            String?
-  assemblyId        String?
-  location          String?
-  quantityOnHand    Int                    @default(0)
-  quantityReserved  Int                    @default(0)
-  quantityAvailable Int                    @default(0)
-  reorderPoint      Int?
-  maxStock          Int?
-  lastUpdated       DateTime               @default(now()) @updatedAt
-  updatedById       String
-  batchOrLotNumber  String?
-  expirationDate    DateTime?
-  inventoryStatus   InventoryStatus        @default(AVAILABLE)
-  serialNumber      String?
-  part              Part?                  @relation(fields: [partId], references: [partId], onDelete: Cascade)
-  updatedBy         User                   @relation("UserInventoryUpdates", fields: [updatedById], references: [id])
-  transactions      InventoryTransaction[]
+model TaskDependency {
+  id                                    String   @id
+  taskId                                String
+  dependsOnId                           String
+  createdAt                             DateTime @default(now())
+  Task_TaskDependency_dependsOnIdToTask Task     @relation("TaskDependency_dependsOnIdToTask", fields: [dependsOnId], references: [id], onDelete: Cascade)
+  Task_TaskDependency_taskIdToTask      Task     @relation("TaskDependency_taskIdToTask", fields: [taskId], references: [id], onDelete: Cascade)
 
-  @@unique([partId, assemblyId, location])
-  @@index([partId, assemblyId])
-  @@index([serialNumber])
+  @@unique([taskId, dependsOnId])
+  @@index([taskId, dependsOnId])
 }
 
-model InventoryTransaction {
-  id              String                   @id @default(cuid())
-  inventoryItemId String
-  type            InventoryTransactionType
-  quantity        Int
-  reason          String?
-  orderId         String?
-  taskId          String?
-  performedById   String
-  createdAt       DateTime                 @default(now())
-  inventoryItem   InventoryItem            @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
-  order           Order?                   @relation(fields: [orderId], references: [id])
-  performedBy     User                     @relation("UserInventoryTransactions", fields: [performedById], references: [id])
-  task            Task?                    @relation(fields: [taskId], references: [id])
+model TaskNote {
+  id        String   @id
+  taskId    String
+  authorId  String
+  content   String
+  createdAt DateTime @default(now())
+  User      User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  Task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
 
-  @@index([inventoryItemId, createdAt])
+  @@index([taskId, createdAt])
 }
 
-model AuditLog {
-  id         String   @id @default(cuid())
-  userId     String?
-  action     String
-  entityType String
-  entityId   String
-  oldValues  Json?
-  newValues  Json?
-  ipAddress  String?
-  userAgent  String?
-  sessionId  String?
-  createdAt  DateTime @default(now())
-  user       User?    @relation("UserAuditLogs", fields: [userId], references: [id])
+model TaskTool {
+  id                  String               @id
+  taskId              String?
+  stepId              String?
+  toolId              String
+  WorkInstructionStep WorkInstructionStep? @relation(fields: [stepId], references: [id], onDelete: Cascade)
+  Task                Task?                @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  Tool                Tool                 @relation(fields: [toolId], references: [id], onDelete: Cascade)
 
-  @@index([entityType, entityId])
-  @@index([userId, createdAt])
+  @@unique([stepId, toolId])
+  @@unique([taskId, toolId])
 }
 
-model TaskTemplate {
-  id                     String             @id @default(cuid())
-  name                   String             @unique
-  description            String?
-  appliesToAssemblyType  AssemblyType?
-  appliesToProductFamily String?
-  version                String             @default("1.0")
-  isActive               Boolean            @default(true)
-  createdAt              DateTime           @default(now())
-  updatedAt              DateTime           @updatedAt
-  steps                  TaskTemplateStep[]
+model Tool {
+  id          String     @id
+  name        String
+  description String?
+  category    String
+  isActive    Boolean    @default(true)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime
+  TaskTool    TaskTool[]
 }
 
-model TaskTemplateStep {
-  id                   String                 @id @default(cuid())
-  taskTemplateId       String
-  stepNumber           Int
-  title                String
-  description          String?
-  estimatedMinutes     Int?
-  workInstructionId    String?
-  qcFormTemplateItemId String?
-  createdAt            DateTime               @default(now())
-  updatedAt            DateTime               @updatedAt
-  instantiatedTasks    Task[]
-  qcFormTemplateItem   QcFormTemplateItem?    @relation(fields: [qcFormTemplateItemId], references: [id])
-  taskTemplate         TaskTemplate           @relation(fields: [taskTemplateId], references: [id], onDelete: Cascade)
-  workInstruction      WorkInstruction?       @relation(fields: [workInstructionId], references: [id])
-  requiredParts        TaskTemplateStepPart[]
-  requiredTools        TaskTemplateStepTool[]
-
-  @@unique([taskTemplateId, stepNumber])
-  @@index([taskTemplateId, stepNumber])
+model User {
+  id                                         String                   @id
+  username                                   String                   @unique
+  email                                      String                   @unique
+  passwordHash                               String
+  fullName                                   String
+  role                                       UserRole
+  isActive                                   Boolean                  @default(true)
+  initials                                   String
+  createdAt                                  DateTime                 @default(now())
+  updatedAt                                  DateTime
+  lastLoginAt                                DateTime?
+  lockedUntil                                DateTime?
+  loginAttempts                              Int                      @default(0)
+  assignedTaskIds                            String[]                 @default([])
+  AuditLog                                   AuditLog[]
+  FileUpload                                 FileUpload[]
+  InventoryItem                              InventoryItem[]
+  InventoryTransaction                       InventoryTransaction[]
+  Notification                               Notification[]
+  NotificationPreference                     NotificationPreference[]
+  Order                                      Order[]
+  OrderComment_OrderComment_resolvedByToUser OrderComment[]           @relation("OrderComment_resolvedByToUser")
+  OrderComment_OrderComment_userIdToUser     OrderComment[]           @relation("OrderComment_userIdToUser")
+  OrderHistoryLog                            OrderHistoryLog[]
+  OrderQcResult                              OrderQcResult[]
+  ServiceOrder                               ServiceOrder[]
+  SystemNotification                         SystemNotification[]
+  Task                                       Task[]
+  TaskNote                                   TaskNote[]
 }
 
-model TaskTemplateStepTool {
-  id                 String           @id @default(cuid())
-  taskTemplateStepId String
-  toolId             String
-  notes              String?
-  taskTemplateStep   TaskTemplateStep @relation(fields: [taskTemplateStepId], references: [id], onDelete: Cascade)
-  tool               Tool             @relation(fields: [toolId], references: [id])
-
-  @@unique([taskTemplateStepId, toolId])
+model WorkInstruction {
+  id                  String                @id
+  title               String
+  description         String?
+  assemblyId          String?
+  version             String                @default("1.0")
+  isActive            Boolean               @default(true)
+  estimatedMinutes    Int?
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime
+  Task                Task[]
+  WorkInstructionStep WorkInstructionStep[]
 }
 
-model TaskTemplateStepPart {
-  id                 String           @id @default(cuid())
-  taskTemplateStepId String
-  partId             String
-  quantity           Int              @default(1)
-  notes              String?
-  part               Part             @relation(fields: [partId], references: [partId])
-  taskTemplateStep   TaskTemplateStep @relation(fields: [taskTemplateStepId], references: [id], onDelete: Cascade)
+model WorkInstructionStep {
+  id                String          @id
+  workInstructionId String
+  stepNumber        Int
+  title             String
+  description       String
+  estimatedMinutes  Int?
+  images            String[]
+  videos            String[]
+  checkpoints       String[]
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime
+  TaskTool          TaskTool[]
+  WorkInstruction   WorkInstruction @relation(fields: [workInstructionId], references: [id], onDelete: Cascade)
 
-  @@unique([taskTemplateStepId, partId])
-}
-
-model TestProcedureTemplate {
-  id                       String                      @id @default(cuid())
-  name                     String                      @unique
-  description              String?
-  version                  String                      @default("1.0")
-  productFamily            String?
-  isActive                 Boolean                     @default(true)
-  estimatedDurationMinutes Int?
-  createdAt                DateTime                    @default(now())
-  updatedAt                DateTime                    @updatedAt
-  orderTestResults         OrderTestResult[]
-  steps                    TestProcedureStepTemplate[]
-}
-
-model TestProcedureStepTemplate {
-  id                               String                @id @default(cuid())
-  testProcedureTemplateId          String
-  stepNumber                       Int
-  title                            String
-  instruction                      String
-  expectedOutcome                  String?
-  inputDataType                    TestStepInputType
-  numericUnit                      String?
-  numericLowerLimit                Float?
-  numericUpperLimit                Float?
-  options                          Json?
-  isRequired                       Boolean               @default(true)
-  repeatPerInstance                String?
-  linkedCalibrationEquipmentTypeId String?
-  createdAt                        DateTime              @default(now())
-  updatedAt                        DateTime              @updatedAt
-  orderTestStepResults             OrderTestStepResult[]
-  testProcedureTemplate            TestProcedureTemplate @relation(fields: [testProcedureTemplateId], references: [id], onDelete: Cascade)
-
-  @@unique([testProcedureTemplateId, stepNumber])
-  @@index([testProcedureTemplateId, stepNumber])
-}
-
-model OrderTestResult {
-  id                      String                @id @default(cuid())
-  orderId                 String
-  buildNumber             String
-  testProcedureTemplateId String
-  testedById              String
-  overallStatus           TestStatus            @default(PENDING)
-  startedAt               DateTime?
-  completedAt             DateTime?
-  notes                   String?
-  createdAt               DateTime              @default(now())
-  updatedAt               DateTime              @updatedAt
-  order                   Order                 @relation(fields: [orderId], references: [id])
-  testProcedureTemplate   TestProcedureTemplate @relation(fields: [testProcedureTemplateId], references: [id])
-  testedBy                User                  @relation(fields: [testedById], references: [id])
-  stepResults             OrderTestStepResult[]
-
-  @@unique([orderId, buildNumber, testProcedureTemplateId])
-  @@index([orderId, buildNumber])
-}
-
-model OrderTestStepResult {
-  id                          String                    @id @default(cuid())
-  orderTestResultId           String
-  testProcedureStepTemplateId String
-  instanceKey                 String?
-  stringValue                 String?
-  numericValue                Float?
-  passFailValue               Boolean?
-  fileUploadId                String?
-  isConformant                Boolean?
-  notes                       String?
-  recordedAt                  DateTime                  @default(now())
-  calibrationData             String?
-  fileUpload                  FileUpload?               @relation("TestStepResultDocument", fields: [fileUploadId], references: [id])
-  orderTestResult             OrderTestResult           @relation(fields: [orderTestResultId], references: [id], onDelete: Cascade)
-  testProcedureStepTemplate   TestProcedureStepTemplate @relation(fields: [testProcedureStepTemplateId], references: [id])
-
-  @@index([orderTestResultId])
-}
-
-model NotificationPreference {
-  id               String                @id @default(cuid())
-  userId           String
-  notificationType NotificationType
-  inAppEnabled     Boolean               @default(true)
-  emailEnabled     Boolean               @default(false)
-  frequency        NotificationFrequency @default(IMMEDIATE)
-  quietHoursStart  Int?
-  quietHoursEnd    Int?
-  emailAddress     String?
-  isActive         Boolean               @default(true)
-  createdAt        DateTime              @default(now())
-  updatedAt        DateTime              @updatedAt
-  user             User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, notificationType])
-  @@index([userId, notificationType])
-}
-
-model QcItemResultMediaAttachment {
-  id                  String            @id @default(cuid())
-  orderQcItemResultId String
-  fileUploadId        String
-  mediaType           String
-  caption             String?
-  createdAt           DateTime          @default(now())
-  fileUpload          FileUpload        @relation("QcItemMediaFile", fields: [fileUploadId], references: [id])
-  orderQcItemResult   OrderQcItemResult @relation(fields: [orderQcItemResultId], references: [id], onDelete: Cascade)
-
-  @@index([orderQcItemResultId])
-  @@index([fileUploadId])
-}
-
-enum PartType {
-  COMPONENT
-  MATERIAL
-}
-
-enum Status {
-  ACTIVE
-  INACTIVE
+  @@unique([workInstructionId, stepNumber])
+  @@index([workInstructionId, stepNumber])
 }
 
 enum AssemblyType {
@@ -814,13 +619,44 @@ enum AssemblyType {
   KIT
 }
 
-enum UserRole {
-  ADMIN
-  PRODUCTION_COORDINATOR
-  PROCUREMENT_SPECIALIST
-  QC_PERSON
-  ASSEMBLER
-  SERVICE_DEPARTMENT
+enum InventoryTransactionType {
+  INCOMING
+  OUTGOING
+  ADJUSTMENT
+  RESERVED
+  RELEASED
+}
+
+enum NotificationFrequency {
+  IMMEDIATE
+  HOURLY
+  DAILY
+  WEEKLY
+}
+
+enum NotificationPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum NotificationType {
+  ORDER_STATUS_CHANGE
+  TASK_ASSIGNMENT
+  QC_APPROVAL_REQUIRED
+  ASSEMBLY_MILESTONE
+  SERVICE_REQUEST
+  SYSTEM_ALERT
+  INVENTORY_LOW
+  DEADLINE_APPROACHING
+}
+
+enum OrderCommentPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
 }
 
 enum OrderStatus {
@@ -833,6 +669,11 @@ enum OrderStatus {
   READY_FOR_FINAL_QC
   READY_FOR_SHIP
   SHIPPED
+}
+
+enum PartType {
+  COMPONENT
+  MATERIAL
 }
 
 enum QcItemType {
@@ -861,12 +702,9 @@ enum ServiceOrderStatus {
   RECEIVED
 }
 
-enum TaskStatus {
-  PENDING
-  IN_PROGRESS
-  COMPLETED
-  BLOCKED
-  CANCELLED
+enum Status {
+  ACTIVE
+  INACTIVE
 }
 
 enum TaskPriority {
@@ -876,67 +714,19 @@ enum TaskPriority {
   URGENT
 }
 
-enum NotificationType {
-  ORDER_STATUS_CHANGE
-  TASK_ASSIGNMENT
-  QC_APPROVAL_REQUIRED
-  ASSEMBLY_MILESTONE
-  SERVICE_REQUEST
-  SYSTEM_ALERT
-  INVENTORY_LOW
-  DEADLINE_APPROACHING
-}
-
-enum NotificationPriority {
-  LOW
-  NORMAL
-  HIGH
-  URGENT
-}
-
-enum NotificationFrequency {
-  IMMEDIATE
-  HOURLY
-  DAILY
-  WEEKLY
-}
-
-enum OrderCommentPriority {
-  LOW
-  NORMAL
-  HIGH
-  URGENT
-}
-
-enum InventoryTransactionType {
-  INCOMING
-  OUTGOING
-  ADJUSTMENT
-  RESERVED
-  RELEASED
-}
-
-enum InventoryStatus {
-  AVAILABLE
-  NON_CONFORMING
-  IN_TRANSIT
-  RESERVED
-  DEFECTIVE
-}
-
-enum TestStepInputType {
-  TEXT
-  NUMERIC
-  PASS_FAIL
-  SINGLE_SELECT
-  MULTI_SELECT
-  SCAN_SN
-  FILE_UPLOAD
-}
-
-enum TestStatus {
+enum TaskStatus {
   PENDING
   IN_PROGRESS
-  PASSED
-  FAILED
+  COMPLETED
+  BLOCKED
+  CANCELLED
+}
+
+enum UserRole {
+  ADMIN
+  PRODUCTION_COORDINATOR
+  PROCUREMENT_SPECIALIST
+  QC_PERSON
+  ASSEMBLER
+  SERVICE_DEPARTMENT
 }

@@ -4,6 +4,9 @@ const path = require('path');
 const { execSync } = require('child_process'); // Added for running shell commands
 const bcrypt = require('bcryptjs');
 
+// Load environment variables from .env.local
+require('dotenv').config({ path: '.env.local' });
+
 async function resetDatabase() {
   console.log('Attempting to reset database...');
   try {
@@ -108,8 +111,9 @@ async function main() {
         manufacturerPartNumber: part.manufacturer_part_number, // Corrected to snake_case
         type: part.type, // Corrected to lowercase 'type'
         status: part.status, // Corrected to lowercase 'status'
-        photoURL: part.photoURL, // Assuming this casing is correct or needs adjustment
-        technicalDrawingURL: part.technicalDrawingURL, // Assuming this casing is correct
+        photoURL: part.photoURL || null, // Assuming this casing is correct or needs adjustment
+        technicalDrawingURL: part.technicalDrawingURL || null, // Assuming this casing is correct
+        // Remove revision field as it doesn't exist in schema
       });
     }
   }

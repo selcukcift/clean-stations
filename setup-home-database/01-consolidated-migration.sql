@@ -959,7 +959,116 @@ ALTER TABLE "TaskNote" ADD CONSTRAINT "TaskNote_taskId_fkey" FOREIGN KEY ("taskI
 ALTER TABLE "TaskNote" ADD CONSTRAINT "TaskNote_authorId_fkey" FOREIGN KEY ("authorId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- =============================================================================
--- MIGRATION COMPLETE
+-- LATEST ENHANCEMENTS: REVISION FIELDS AND QC SYSTEM IMPROVEMENTS
 -- =============================================================================
 
-COMMENT ON DATABASE CURRENT_DATABASE IS 'Torvan Medical CleanStation Production Workflow Database - Complete Schema with Enhanced Features';
+-- Add revision and enhanced fields to Part and Assembly tables (conditional)
+DO $$
+BEGIN
+    -- Add revision field to Part if not exists
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'Part' AND column_name = 'revision') THEN
+        ALTER TABLE "Part" ADD COLUMN "revision" TEXT NOT NULL DEFAULT '1';
+    END IF;
+    
+    -- Add customAttributes field to Part if not exists
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'Part' AND column_name = 'customAttributes') THEN
+        ALTER TABLE "Part" ADD COLUMN "customAttributes" JSONB;
+    END IF;
+    
+    -- Add revision field to Assembly if not exists
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'Assembly' AND column_name = 'revision') THEN
+        ALTER TABLE "Assembly" ADD COLUMN "revision" TEXT NOT NULL DEFAULT '1';
+    END IF;
+    
+    -- Add customAttributes field to Assembly if not exists
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'Assembly' AND column_name = 'customAttributes') THEN
+        ALTER TABLE "Assembly" ADD COLUMN "customAttributes" JSONB;
+    END IF;
+    
+    -- Add isOrderable field to Assembly if not exists
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'Assembly' AND column_name = 'isOrderable') THEN
+        ALTER TABLE "Assembly" ADD COLUMN "isOrderable" BOOLEAN NOT NULL DEFAULT false;
+    END IF;
+END $$;
+
+-- Enhance QC Template Items with advanced features (conditional)
+DO $$
+BEGIN
+    -- Add QC enhancement fields only if they don't exist
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'QcFormTemplateItem' AND column_name = 'applicabilityCondition') THEN
+        ALTER TABLE "QcFormTemplateItem" ADD COLUMN "applicabilityCondition" TEXT;
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'QcFormTemplateItem' AND column_name = 'defaultValue') THEN
+        ALTER TABLE "QcFormTemplateItem" ADD COLUMN "defaultValue" TEXT;
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'QcFormTemplateItem' AND column_name = 'notesPrompt') THEN
+        ALTER TABLE "QcFormTemplateItem" ADD COLUMN "notesPrompt" TEXT;
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'QcFormTemplateItem' AND column_name = 'relatedAssemblyId') THEN
+        ALTER TABLE "QcFormTemplateItem" ADD COLUMN "relatedAssemblyId" TEXT;
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'QcFormTemplateItem' AND column_name = 'relatedPartNumber') THEN
+        ALTER TABLE "QcFormTemplateItem" ADD COLUMN "relatedPartNumber" TEXT;
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'QcFormTemplateItem' AND column_name = 'repeatPer') THEN
+        ALTER TABLE "QcFormTemplateItem" ADD COLUMN "repeatPer" TEXT;
+    END IF;
+    
+    -- Add attachedDocumentId to OrderQcItemResult if not exists
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'OrderQcItemResult' AND column_name = 'attachedDocumentId') THEN
+        ALTER TABLE "OrderQcItemResult" ADD COLUMN "attachedDocumentId" TEXT;
+    END IF;
+END $$;
+
+-- Create QC Media Attachment table if not exists
+CREATE TABLE IF NOT EXISTS "QcItemResultMediaAttachment" (
+    "id" TEXT NOT NULL,
+    "orderQcItemResultId" TEXT NOT NULL,
+    "fileUploadId" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "QcItemResultMediaAttachment_pkey" PRIMARY KEY ("id")
+);
+
+-- Create indexes for QC media attachments if not exists
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'QcItemResultMediaAttachment_orderQcItemResultId_idx') THEN
+        CREATE INDEX "QcItemResultMediaAttachment_orderQcItemResultId_idx" ON "QcItemResultMediaAttachment"("orderQcItemResultId");
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'QcItemResultMediaAttachment_fileUploadId_idx') THEN
+        CREATE INDEX "QcItemResultMediaAttachment_fileUploadId_idx" ON "QcItemResultMediaAttachment"("fileUploadId");
+    END IF;
+END $$;
+
+-- Add foreign key constraints for QC enhancements if not exists
+DO $$
+BEGIN
+    -- Add OrderQcItemResult attachedDocument foreign key if not exists
+    IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'OrderQcItemResult_attachedDocumentId_fkey') THEN
+        ALTER TABLE "OrderQcItemResult" ADD CONSTRAINT "OrderQcItemResult_attachedDocumentId_fkey" 
+        FOREIGN KEY ("attachedDocumentId") REFERENCES "FileUpload"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+    END IF;
+    
+    -- Add QcItemResultMediaAttachment foreign keys if not exists
+    IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'QcItemResultMediaAttachment_orderQcItemResultId_fkey') THEN
+        ALTER TABLE "QcItemResultMediaAttachment" ADD CONSTRAINT "QcItemResultMediaAttachment_orderQcItemResultId_fkey" 
+        FOREIGN KEY ("orderQcItemResultId") REFERENCES "OrderQcItemResult"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'QcItemResultMediaAttachment_fileUploadId_fkey') THEN
+        ALTER TABLE "QcItemResultMediaAttachment" ADD CONSTRAINT "QcItemResultMediaAttachment_fileUploadId_fkey" 
+        FOREIGN KEY ("fileUploadId") REFERENCES "FileUpload"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+    END IF;
+END $$;
+
+-- =============================================================================
+-- MIGRATION COMPLETE - ENHANCED SCHEMA v2.1
+-- =============================================================================
+
+COMMENT ON DATABASE CURRENT_DATABASE IS 'Torvan Medical CleanStation Production Workflow Database - Complete Schema with Enhanced QC Features and Revision Tracking';
