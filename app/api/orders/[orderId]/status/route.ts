@@ -13,7 +13,11 @@ const StatusUpdateSchema = z.object({
     'PARTS_SENT_WAITING_ARRIVAL',
     'READY_FOR_PRE_QC',
     'READY_FOR_PRODUCTION',
+    'ASSEMBLY_IN_PROGRESS',
+    'READY_FOR_EOL_TESTING',
+    'EOL_TESTING_IN_PROGRESS',
     'TESTING_COMPLETE',
+    'PACKAGING_IN_PROGRESS',
     'PACKAGING_COMPLETE',
     'READY_FOR_FINAL_QC',
     'READY_FOR_SHIP',
@@ -47,22 +51,41 @@ function validateStatusTransition(
     },
     'PARTS_SENT_WAITING_ARRIVAL': {
       'PROCUREMENT_SPECIALIST': ['READY_FOR_PRE_QC'],
-      'PRODUCTION_COORDINATOR': ['READY_FOR_PRE_QC', 'READY_FOR_PRODUCTION']
+      'PRODUCTION_COORDINATOR': ['READY_FOR_PRE_QC', 'READY_FOR_PRODUCTION'] // Can skip if parts arrive quickly
     },
-    'READY_FOR_PRE_QC': {
-      'QC_PERSON': ['READY_FOR_PRODUCTION'],
-      'PRODUCTION_COORDINATOR': ['READY_FOR_PRODUCTION']
+    'READY_FOR_PRE_QC': { // Auto-transitions to READY_FOR_PRODUCTION on QC pass
+      'QC_PERSON': ['READY_FOR_PRODUCTION'], // If Pre-QC passes
+      'PRODUCTION_COORDINATOR': ['READY_FOR_PRODUCTION'] // Override
     },
-    'READY_FOR_PRODUCTION': {
-      'ASSEMBLER': ['TESTING_COMPLETE'],
-      'PRODUCTION_COORDINATOR': ['TESTING_COMPLETE']
+    'READY_FOR_PRODUCTION': { // Auto-transitions to ASSEMBLY_IN_PROGRESS when tasks start
+      'ASSEMBLER': ['ASSEMBLY_IN_PROGRESS'], // Assembler manually indicates start
+      'PRODUCTION_COORDINATOR': ['ASSEMBLY_IN_PROGRESS'] // Override
     },
-    'TESTING_COMPLETE': {
+    'ASSEMBLY_IN_PROGRESS': { // Auto-transitions to READY_FOR_EOL_TESTING when all tasks complete
+      'ASSEMBLER': ['READY_FOR_EOL_TESTING'], // Assembler confirms all assembly done
+      'PRODUCTION_COORDINATOR': ['READY_FOR_EOL_TESTING'] // Override
+    },
+    'READY_FOR_EOL_TESTING': { // Auto-transitions to EOL_TESTING_IN_PROGRESS when tests start
+      'ASSEMBLER': ['EOL_TESTING_IN_PROGRESS'], // Assembler starts EOL tests
+      'PRODUCTION_COORDINATOR': ['EOL_TESTING_IN_PROGRESS'] // Override
+    },
+    'EOL_TESTING_IN_PROGRESS': { // Auto-transitions to TESTING_COMPLETE on test pass
+      'ASSEMBLER': ['TESTING_COMPLETE'], // Assembler confirms tests passed
+      'PRODUCTION_COORDINATOR': ['TESTING_COMPLETE'] // Override
+    },
+    'TESTING_COMPLETE': { // This is after EOL testing is done
+      'ASSEMBLER': ['PACKAGING_IN_PROGRESS'], // Start packaging
+      'PRODUCTION_COORDINATOR': ['PACKAGING_IN_PROGRESS', 'READY_FOR_PACKAGING_QC'] // Can skip to QC if packaging is quick/simple
+    },
+    'PACKAGING_IN_PROGRESS': { // This would be set if packaging is a distinct, tracked phase
       'ASSEMBLER': ['PACKAGING_COMPLETE'],
-      'PRODUCTION_COORDINATOR': ['PACKAGING_COMPLETE', 'READY_FOR_FINAL_QC']
+      'PRODUCTION_COORDINATOR': ['PACKAGING_COMPLETE', 'READY_FOR_PACKAGING_QC']
     },
-    'PACKAGING_COMPLETE': {
-      'QC_PERSON': ['READY_FOR_FINAL_QC'],
+    'PACKAGING_COMPLETE': { // This implies packaging checklist (if any) is done
+      // This might become READY_FOR_PACKAGING_QC if we implement packaging QC
+      // For now, let's assume it can go to READY_FOR_FINAL_QC
+      'ASSEMBLER': ['READY_FOR_FINAL_QC'], // Assembler hands over for Final QC
+      'QC_PERSON': ['READY_FOR_FINAL_QC'], // QC can pull it if they see it's packaged
       'PRODUCTION_COORDINATOR': ['READY_FOR_FINAL_QC']
     },
     'READY_FOR_FINAL_QC': {

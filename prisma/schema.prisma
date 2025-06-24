@@ -142,6 +142,7 @@ model FileUpload {
   User                        User                          @relation(fields: [uploadedById], references: [id])
   OrderQcItemResult           OrderQcItemResult[]
   QcItemResultMediaAttachment QcItemResultMediaAttachment[]
+  OrderTestStepResult         OrderTestStepResult[] // Added for linking test step uploads
 
   @@index([uploadedById, createdAt])
 }
@@ -244,6 +245,7 @@ model Order {
   SinkConfiguration    SinkConfiguration[]
   SprayerConfiguration SprayerConfiguration[]
   Task                 Task[]
+  OrderTestResult      OrderTestResult[] @relation("OrderToTestResults")
 
   @@unique([poNumber, buildNumbers])
 }
@@ -343,6 +345,7 @@ model QcFormTemplate {
   updatedAt              DateTime
   OrderQcResult          OrderQcResult[]
   QcFormTemplateItem     QcFormTemplateItem[]
+  qcType                 QcFormType @default(GENERIC) // Added for robust type handling
 }
 
 model QcFormTemplateItem {
@@ -577,6 +580,92 @@ model User {
   SystemNotification                         SystemNotification[]
   Task                                       Task[]
   TaskNote                                   TaskNote[]
+  OrderTestResult                            OrderTestResult[]
+}
+
+// Model for End-of-Line Testing Procedures
+model TestProcedureTemplate {
+  id                         String                        @id @default(cuid())
+  name                       String
+  version                    String                        @default("1.0")
+  description                String?
+  productFamily              String? // e.g., MDRD, E-Sink, specific model
+  estimatedDurationMinutes   Int?
+  isActive                   Boolean                       @default(true)
+  createdAt                  DateTime                      @default(now())
+  updatedAt                  DateTime                      @updatedAt
+  steps                      TestProcedureStepTemplate[]
+  OrderTestResult            OrderTestResult[]
+}
+
+model TestProcedureStepTemplate {
+  id                         String                  @id @default(cuid())
+  templateId                 String
+  stepNumber                 Int
+  title                      String
+  instruction                String
+  expectedOutcome            String?
+  inputDataType              QcItemType // Re-use QcItemType for consistency (PASS_FAIL, TEXT_INPUT, NUMERIC_INPUT etc.)
+  numericUnit                String? // e.g., "Volts", "Amps", "Liters"
+  numericLowerLimit          Float?
+  numericUpperLimit          Float?
+  options                    Json? // For SINGLE_SELECT, MULTI_SELECT
+  isRequired                 Boolean                 @default(true)
+  repeatPerInstance          String? // e.g., "BASIN", "LIFTER_COLUMN" - to repeat step for multiple instances
+  instanceKeyPrompt          String? // e.g., "Enter Basin Number"
+  allowsFileUpload           Boolean                 @default(false)
+  createdAt                  DateTime                @default(now())
+  updatedAt                  DateTime                @updatedAt
+  template                   TestProcedureTemplate   @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  OrderTestStepResult        OrderTestStepResult[]
+
+  @@unique([templateId, stepNumber])
+  @@index([templateId, stepNumber])
+}
+
+model OrderTestResult {
+  id                         String                  @id @default(cuid())
+  orderId                    String
+  buildNumber                String // Specific build number if order has multiple units
+  testProcedureTemplateId    String
+  testedById                 String
+  overallStatus              QcStatus                @default(PENDING) // Reuse QcStatus: PENDING, IN_PROGRESS, PASSED, FAILED
+  notes                      String?
+  startedAt                  DateTime                @default(now())
+  completedAt                DateTime?
+  createdAt                  DateTime                @default(now())
+  updatedAt                  DateTime                @updatedAt
+  order                      Order                   @relation("OrderToTestResults", fields: [orderId], references: [id], onDelete:Cascade)
+  testProcedureTemplate      TestProcedureTemplate   @relation(fields: [testProcedureTemplateId], references: [id])
+  testedBy                   User                    @relation(fields: [testedById], references: [id])
+  stepResults                OrderTestStepResult[]
+
+  @@unique([orderId, buildNumber, testProcedureTemplateId]) // Ensure one result per build per template
+  @@index([orderId, buildNumber])
+  @@index([testedById])
+}
+
+model OrderTestStepResult {
+  id                         String                    @id @default(cuid())
+  orderTestResultId          String
+  testProcedureStepTemplateId String
+  instanceKey                String? // e.g., "Basin1", "Basin2" if step is repeated
+  stringValue                String?
+  numericValue               Float?
+  passFailValue              Boolean?
+  fileUploadId               String? // Link to a FileUpload record
+  isConformant               Boolean? // Whether the result meets expected outcome
+  notes                      String?
+  calibrationData            String? // Store details of calibration equipment used for this step
+  createdAt                  DateTime                  @default(now())
+  updatedAt                  DateTime                  @updatedAt
+  orderTestResult            OrderTestResult           @relation(fields: [orderTestResultId], references: [id], onDelete: Cascade)
+  testProcedureStepTemplate  TestProcedureStepTemplate @relation(fields: [testProcedureStepTemplateId], references: [id])
+  fileUpload                 FileUpload?             @relation(fields: [fileUploadId], references: [id], onDelete: SetNull)
+
+  @@index([orderTestResultId])
+  @@index([testProcedureStepTemplateId])
+  @@index([fileUploadId])
 }
 
 model WorkInstruction {
@@ -664,7 +753,11 @@ enum OrderStatus {
   PARTS_SENT_WAITING_ARRIVAL
   READY_FOR_PRE_QC
   READY_FOR_PRODUCTION
+  ASSEMBLY_IN_PROGRESS // Added
+  READY_FOR_EOL_TESTING // Added
+  EOL_TESTING_IN_PROGRESS // Added
   TESTING_COMPLETE
+  PACKAGING_IN_PROGRESS // Added
   PACKAGING_COMPLETE
   READY_FOR_FINAL_QC
   READY_FOR_SHIP
@@ -729,4 +822,12 @@ enum UserRole {
   QC_PERSON
   ASSEMBLER
   SERVICE_DEPARTMENT
+}
+
+enum QcFormType {
+  PRE_PRODUCTION
+  FINAL_QUALITY
+  PACKAGING
+  IN_PROCESS_ASSEMBLY
+  GENERIC
 }
